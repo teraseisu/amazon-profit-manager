@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon 利益管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f4f0; --surface: #ffffff; --surface2: #f0eeea;
+  --border: rgba(0,0,0,0.08); --border2: rgba(0,0,0,0.14);
+  --text: #1a1917; --text2: #6b6960; --text3: #9e9b93;
+  --accent: #FF9900; --accent-dark: #c87700; --accent-bg: #fff8ec;
+  --new: #1D9E75; --new-bg: #e8f8f1; --new-text: #0a5c40;
+  --used: #3469c7; --used-bg: #eaf0fc; --used-text: #1a3d8a;
+  --danger: #c94040; --danger-bg: #fceaea;
+  --warn: #a06020; --warn-bg: #fdf3e3;
+  --radius: 10px; --radius-sm: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.07);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; min-height: 100vh; }
+
+/* ===== LAYOUT ===== */
+.app { display: flex; min-height: 100vh; flex-direction: column; }
+.topbar {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 0 1.25rem; display: flex; align-items: center; justify-content: space-between;
+  height: 54px; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow);
+  gap: 12px;
+}
+.logo { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.logo-mark { width: 30px; height: 30px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: #fff; }
+.logo-text { font-weight: 700; font-size: 14px; white-space: nowrap; }
+.logo-text span { color: var(--accent); }
+
+/* Account switcher */
+.account-switcher { display: flex; align-items: center; gap: 6px; flex: 1; max-width: 480px; }
+.account-tabs { display: flex; gap: 3px; flex: 1; overflow-x: auto; }
+.account-tabs::-webkit-scrollbar { display: none; }
+.account-tab {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--text2); cursor: pointer;
+  border: 1px solid var(--border2); background: var(--surface);
+  white-space: nowrap; transition: all 0.12s; flex-shrink: 0;
+  font-family: 'Noto Sans JP', sans-serif;
+}
+.account-tab:hover { background: var(--surface2); }
+.account-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.account-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.6; }
+.account-tab.active .dot { background: #fff; opacity: 1; }
+.account-tab.has-key .dot { background: #1D9E75; opacity: 1; }
+.account-tab.active.has-key .dot { background: #fff; }
+.add-account-btn {
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  border: 1px dashed var(--border2); background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text3); font-size: 16px; flex-shrink: 0;
+  transition: all 0.12s;
+}
+.add-account-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+
+.topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.api-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); background: var(--surface2); padding: 4px 9px; border-radius: 20px; white-space: nowrap; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; }
+.dot-on { background: #1D9E75; }
+.dot-off { background: var(--danger); }
+.month-select { padding: 4px 8px; border: 1px solid var(--border2); border-radius: var(--radius-sm); background: var(--surface); font-size: 12px; color: var(--text); font-family: 'Noto Sans JP', sans-serif; }
+.sync-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1px solid var(--border2); border-radius: var(--radius-sm); background: var(--surface); font-size: 12px; cursor: pointer; color: var(--text2); font-family: 'Noto Sans JP', sans-serif; transition: all 0.15s; white-space: nowrap; }
+.sync-btn:hover { background: var(--surface2); }
+
+.body { display: flex; flex: 1; }
+.sidebar { width: 190px; background: var(--surface); border-right: 1px solid var(--border); padding: 1rem 0; position: sticky; top: 54px; height: calc(100vh - 54px); overflow-y: auto; flex-shrink: 0; }
+.nav-group { margin-bottom: 1.25rem; padding: 0 0.75rem; }
+.nav-label { font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; padding: 0 8px; margin-bottom: 5px; }
+.nav-item { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text2); cursor: pointer; transition: all 0.12s; }
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: var(--accent-bg); color: var(--accent-dark); font-weight: 500; }
+.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+.main { flex: 1; padding: 1.25rem; overflow: auto; min-width: 0; }
+.page { display: none; }
+.page.active { display: block; animation: fadeIn 0.18s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+.page-title { font-size: 17px; font-weight: 700; margin-bottom: 3px; }
+.page-sub { font-size: 12px; color: var(--text2); margin-bottom: 1.1rem; }
+
+/* ===== COMPONENTS ===== */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; box-shadow: var(--shadow); margin-bottom: 1rem; }
+.card-title { font-size: 13px; font-weight: 600; margin-bottom: 0.9rem; }
+.section-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.9rem; }
+
+.metric-grid { display: grid; gap: 8px; margin-bottom: 1rem; }
+.metric-card { background: var(--surface2); border-radius: var(--radius-sm); padding: 12px 14px; border: 1px solid var(--border); }
+.metric-label { font-size: 11px; color: var(--text2); margin-bottom: 5px; display: flex; align-items: center; gap: 4px; }
+.metric-label .dot { width: 6px; height: 6px; border-radius: 50%; }
+.metric-value { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+.metric-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.pos { color: #0a5c40; } .neg { color: var(--danger); }
+
+.two-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 1rem; }
+.panel-new { border-left: 3px solid var(--new); }
+.panel-used { border-left: 3px solid var(--used); }
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.stat-row:last-child { border-bottom: none; font-weight: 600; font-size: 13px; }
+.stat-label { color: var(--text2); }
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: left; font-size: 10px; font-weight: 600; color: var(--text3); letter-spacing: 0.05em; text-transform: uppercase; padding: 7px 8px; border-bottom: 1px solid var(--border2); white-space: nowrap; }
+td { padding: 8px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surface2); }
+.mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+.badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
+.b-new { background: var(--new-bg); color: var(--new-text); }
+.b-used { background: var(--used-bg); color: var(--used-text); }
+.b-Unshipped,.b-unshipped { background: var(--warn-bg); color: var(--warn); }
+.b-Shipped,.b-shipped { background: #eaf0fc; color: #1a3d8a; }
+.b-Canceled,.b-cancelled { background: var(--danger-bg); color: var(--danger); }
+.b-PartiallyShipped { background: var(--warn-bg); color: var(--warn); }
+
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 13px; font-family: 'Noto Sans JP', sans-serif; cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
+.btn-primary { background: var(--accent); color: #fff; font-weight: 600; }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-secondary { background: var(--surface); border-color: var(--border2); color: var(--text); }
+.btn-secondary:hover { background: var(--surface2); }
+.btn-sm { padding: 4px 9px; font-size: 12px; }
+.btn-danger { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: var(--danger); color: #fff; }
+
+.filter-tabs { display: flex; gap: 3px; margin-bottom: 0.9rem; }
+.filter-tab { padding: 4px 11px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border2); background: var(--surface); color: var(--text2); font-family: 'Noto Sans JP', sans-serif; transition: all 0.12s; }
+.filter-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+.search-wrap { position: relative; }
+.search-wrap svg { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--text3); pointer-events: none; }
+.search-input { width: 100%; padding: 6px 8px 6px 27px; font-size: 13px; border: 1px solid var(--border2); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-family: 'Noto Sans JP', sans-serif; }
+.search-input:focus { outline: none; border-color: var(--accent); }
+
+.bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 130px; padding: 0 2px; }
+.bar-group { flex: 1; display: flex; gap: 2px; align-items: flex-end; }
+.bar { border-radius: 3px 3px 0 0; min-height: 2px; transition: opacity 0.2s; }
+.bar:hover { opacity: 0.75; }
+.bar-x { display: flex; gap: 6px; padding: 0 2px; margin-top: 4px; }
+.bar-x-item { flex: 1; text-align: center; font-size: 10px; color: var(--text3); }
+.chart-legend { display: flex; gap: 12px; font-size: 11px; color: var(--text2); margin-bottom: 8px; }
+.leg-sq { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+.progress { height: 4px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.progress-fill { height: 100%; border-radius: 3px; }
+
+label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px; font-weight: 500; }
+input[type=text], input[type=number], input[type=password], select, textarea {
+  padding: 7px 10px; font-size: 13px; font-family: 'Noto Sans JP', sans-serif;
+  border: 1px solid var(--border2); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); width: 100%;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,153,0,0.10); }
+.form-group { margin-bottom: 10px; }
+
+.settings-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem; margin-bottom: 1rem; box-shadow: var(--shadow); }
+.settings-title { font-size: 13px; font-weight: 700; margin-bottom: 0.9rem; display: flex; align-items: center; gap: 7px; }
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sku-rule { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 7px; border: 1px solid var(--border); }
+.code { font-family: 'JetBrains Mono', monospace; font-size: 11px; background: var(--surface); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border); }
+
+.info-box { background: var(--accent-bg); border: 1px solid rgba(255,153,0,0.2); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 12px; color: var(--accent-dark); display: flex; gap: 7px; margin-bottom: 0.9rem; }
+.success-box { background: var(--new-bg); border: 1px solid rgba(29,158,117,0.2); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 12px; color: var(--new-text); margin-bottom: 0.9rem; }
+.error-box { background: var(--danger-bg); border: 1px solid rgba(201,64,64,0.2); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 12px; color: var(--danger); margin-bottom: 0.9rem; }
+
+/* Account card */
+.account-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; margin-bottom: 10px; box-shadow: var(--shadow); transition: border-color 0.15s; }
+.account-card.current { border-color: var(--accent); }
+.account-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.account-name-row { display: flex; align-items: center; gap: 8px; }
+.account-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border-radius: var(--radius); padding: 1.25rem; width: 400px; max-width: 95vw; box-shadow: var(--shadow-md); }
+.modal-title { font-size: 15px; font-weight: 700; margin-bottom: 1rem; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 1rem; }
+
+.loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 1.5rem; color: var(--text2); font-size: 13px; }
+.spinner { width: 16px; height: 16px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.toast { position: fixed; bottom: 1.25rem; right: 1.25rem; background: var(--text); color: #fff; padding: 9px 14px; border-radius: var(--radius-sm); font-size: 13px; z-index: 999; box-shadow: var(--shadow-md); opacity: 0; transition: opacity 0.25s; pointer-events: none; max-width: 320px; }
+.toast.show { opacity: 1; }
+
+.table-wrap { overflow-x: auto; }
+
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .two-panels { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: repeat(2,1fr); }
+  .settings-grid { grid-template-columns: 1fr; }
+  .account-tab span { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-mark">A</div>
+    <div class="logo-text">Amazon <span>利益管理</span></div>
+  </div>
+
+  <!-- Account tabs -->
+  <div class="account-switcher">
+    <div class="account-tabs" id="account-tabs"></div>
+    <button class="add-account-btn" onclick="showAddAccountModal()" title="アカウントを追加">+</button>
+  </div>
+
+  <div class="topbar-right">
+    <select class="month-select" id="month-select" onchange="renderAll()"></select>
+    <div class="api-status" id="api-status-bar">
+      <div class="status-dot dot-off" id="api-dot"></div>
+      <span id="api-status-text">未接続</span>
+    </div>
+    <button class="sync-btn" onclick="syncOrders()" id="sync-btn">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="sync-icon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      同期
+    </button>
+  </div>
+</div>
+
+<div class="body">
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="nav-group">
+    <div class="nav-label">メイン</div>
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>ダッシュボード
+    </div>
+    <div class="nav-item" onclick="showPage('orders')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>注文一覧
+    </div>
+    <div class="nav-item" onclick="showPage('profit')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>利益分析
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">設定</div>
+    <div class="nav-item" onclick="showPage('accounts')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>アカウント設定
+    </div>
+    <div class="nav-item" onclick="showPage('sku-settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>費用設定
+    </div>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- ===== DASHBOARD ===== -->
+<div class="page active" id="page-dashboard">
+  <div class="page-title" id="dash-title">ダッシュボード</div>
+  <div class="page-sub" id="dash-sub">アカウントを選択して同期してください</div>
+
+  <div id="dash-no-api" class="info-box">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <div>APIキーが未設定です。<span style="cursor:pointer;text-decoration:underline" onclick="showPage('accounts')">アカウント設定</span>からSP-APIキーを入力してください。</div>
+  </div>
+
+  <div class="metric-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric-card"><div class="metric-label">総売上</div><div class="metric-value" id="kpi-rev">--</div><div class="metric-sub" id="kpi-cnt">--</div></div>
+    <div class="metric-card"><div class="metric-label">純利益（合計）</div><div class="metric-value pos" id="kpi-profit">--</div><div class="metric-sub" id="kpi-margin">利益率 --%</div></div>
+    <div class="metric-card"><div class="metric-label"><div class="dot" style="background:var(--new)"></div>新品 利益</div><div class="metric-value" style="color:var(--new)" id="kpi-new">--</div><div class="metric-sub" id="kpi-new-cnt">--</div></div>
+    <div class="metric-card"><div class="metric-label"><div class="dot" style="background:var(--used)"></div>中古 利益</div><div class="metric-value" style="color:var(--used)" id="kpi-used">--</div><div class="metric-sub" id="kpi-used-cnt">--</div></div>
+  </div>
+
+  <div class="two-panels">
+    <div class="card panel-new">
+      <div class="card-title" style="display:flex;align-items:center;gap:5px"><div class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--new)"></div>新品 詳細</div>
+      <div class="stat-row"><span class="stat-label">売上</span><span id="d-new-rev">--</span></div>
+      <div class="stat-row"><span class="stat-label">仕入原価</span><span class="neg" id="d-new-cost">--</span></div>
+      <div class="stat-row"><span class="stat-label">Amazon手数料</span><span class="neg" id="d-new-fee">--</span></div>
+      <div class="stat-row"><span class="stat-label">送料</span><span class="neg" id="d-new-ship">--</span></div>
+      <div class="stat-row"><span>純利益</span><span class="pos" id="d-new-net">--</span></div>
+    </div>
+    <div class="card panel-used">
+      <div class="card-title" style="display:flex;align-items:center;gap:5px"><div class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--used)"></div>中古 詳細</div>
+      <div class="stat-row"><span class="stat-label">売上</span><span id="d-used-rev">--</span></div>
+      <div class="stat-row"><span class="stat-label">仕入原価（SKU自動）</span><span class="neg" id="d-used-cost">--</span></div>
+      <div class="stat-row"><span class="stat-label">Amazon手数料</span><span class="neg" id="d-used-fee">--</span></div>
+      <div class="stat-row"><span class="stat-label">送料</span><span class="neg" id="d-used-ship">--</span></div>
+      <div class="stat-row"><span>純利益</span><span class="pos" id="d-used-net">--</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div class="card-title" style="margin-bottom:0">週別利益推移</div>
+      <div class="chart-legend">
+        <span style="display:flex;align-items:center;gap:3px"><span class="leg-sq" style="background:var(--new)"></span>新品</span>
+        <span style="display:flex;align-items:center;gap:3px"><span class="leg-sq" style="background:var(--used)"></span>中古</span>
+      </div>
+    </div>
+    <div class="bar-chart" id="weekly-bars"></div>
+    <div class="bar-x" id="weekly-labels"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-row">
+      <div class="card-title" style="margin-bottom:0">最近の注文</div>
+      <button class="btn btn-secondary btn-sm" onclick="showPage('orders')">全件表示 →</button>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>注文日</th><th>種別</th><th style="min-width:150px">商品名</th><th>売価</th><th>純利益</th><th>状態</th></tr></thead>
+      <tbody id="recent-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ===== ORDERS ===== -->
+<div class="page" id="page-orders">
+  <div class="page-title">注文一覧</div>
+  <div class="page-sub">仕入れ値・送料は直接入力できます（入力後Enterまたはクリックで自動保存）</div>
+  <div class="card">
+    <div style="display:flex;gap:8px;margin-bottom:0.9rem;flex-wrap:wrap;align-items:center">
+      <div class="search-wrap" style="flex:1;min-width:180px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="search-input" placeholder="注文ID・商品名・SKUで検索..." oninput="renderOrdersTable()" id="order-search">
+      </div>
+      <div class="filter-tabs" style="margin-bottom:0">
+        <button class="filter-tab active" onclick="setOrderFilter('all')" id="of-all">すべて</button>
+        <button class="filter-tab" onclick="setOrderFilter('new')" id="of-new">新品</button>
+        <button class="filter-tab" onclick="setOrderFilter('used')" id="of-used">中古</button>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="toggleSort()">日付 <span id="sort-label">新しい順</span></button>
+      <button class="btn btn-secondary btn-sm" onclick="exportCSV()">CSVエクスポート</button>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th style="cursor:pointer" onclick="toggleSort()">注文日<span id="sort-icon"> ↓</span></th>
+        <th>種別</th><th style="min-width:130px">商品名</th>
+        <th style="min-width:100px">SKU</th><th>売価</th>
+        <th style="min-width:80px">仕入れ(¥)</th>
+        <th style="min-width:70px">送料(¥)</th>
+        <th>手数料</th><th>純利益</th><th>状態</th>
+      </tr></thead>
+      <tbody id="orders-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ===== PROFIT ===== -->
+<div class="page" id="page-profit">
+  <div class="page-title">利益分析</div>
+  <div class="page-sub">商品別・種別の詳細な利益内訳</div>
+  <div class="metric-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric-card"><div class="metric-label">総売上</div><div class="metric-value" id="pa-rev">--</div></div>
+    <div class="metric-card"><div class="metric-label">総費用</div><div class="metric-value neg" id="pa-cost">--</div></div>
+    <div class="metric-card"><div class="metric-label">純利益</div><div class="metric-value pos" id="pa-profit">--</div></div>
+    <div class="metric-card"><div class="metric-label">利益率</div><div class="metric-value pos" id="pa-margin">--%</div></div>
+  </div>
+  <div class="two-panels">
+    <div class="card"><div class="card-title">費用内訳</div><div id="cost-breakdown"></div></div>
+    <div class="card"><div class="card-title">新品 vs 中古</div><div id="nv-comparison"></div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">商品別利益ランキング</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>順位</th><th>種別</th><th style="min-width:160px">商品名</th><th>売上</th><th>純利益</th><th>利益率</th></tr></thead>
+      <tbody id="profit-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ===== ACCOUNTS ===== -->
+<div class="page" id="page-accounts">
+  <div class="page-title">アカウント設定</div>
+  <div class="page-sub">複数のAmazonセラーアカウントを管理できます</div>
+  <div class="info-box">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <div>APIキーはこのブラウザのローカルストレージに保存されます。<strong>自分専用のPCでのみ</strong>ご利用ください。</div>
+  </div>
+  <div id="accounts-list"></div>
+  <button class="btn btn-secondary" onclick="showAddAccountModal()" id="add-account-main-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    アカウントを追加
+  </button>
+</div>
+
+<!-- ===== SKU SETTINGS ===== -->
+<div class="page" id="page-sku-settings">
+  <div class="page-title">費用設定</div>
+  <div class="page-sub">利益計算に使うデフォルト値（現在のアカウントに適用）</div>
+  <div class="settings-section">
+    <div class="settings-title">SKU 判別ルール</div>
+    <div class="sku-rule">
+      <div style="font-weight:600;font-size:12px;margin-bottom:5px;display:flex;align-items:center;gap:5px"><span class="badge b-new">新品</span></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:3px">パターン: <span class="code">m_m[数字]</span>（ハイフンなし）</div>
+      <div style="font-size:12px;color:var(--text3)">例: <span class="code">m_m93592455612</span></div>
+    </div>
+    <div class="sku-rule">
+      <div style="font-weight:600;font-size:12px;margin-bottom:5px;display:flex;align-items:center;gap:5px"><span class="badge b-used">中古</span></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:3px">パターン: <span class="code">m_m[数字]-[数字]</span>（ハイフンあり → 中古と判定）</div>
+      <div style="font-size:12px;color:var(--text3)">例: <span class="code">m_m53368356227-2249</span> → 中古として判定（仕入れ値は手動入力）</div>
+    </div>
+  </div>
+  <div class="settings-section">
+    <div class="settings-title">デフォルト費用</div>
+    <div class="settings-grid">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--new);margin-bottom:8px">新品</div>
+        <div class="form-group"><label>デフォルト仕入れ値 (¥)</label><input type="number" id="cfg-new-cost" value="0" min="0"></div>
+        <div class="form-group"><label>デフォルト送料 (¥)</label><input type="number" id="cfg-new-ship" value="0" min="0"></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--used);margin-bottom:8px">中古</div>
+        <div class="form-group"><label>デフォルト送料 (¥)<br><span style="font-weight:400;color:var(--text3)">仕入れ値は注文ごとに手動入力</span></label><input type="number" id="cfg-used-ship" value="0" min="0"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Amazon手数料率 (%)</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="cfg-fee-rate" value="15" min="0" max="100" step="0.5" style="width:90px">
+        <span style="font-size:12px;color:var(--text3)">通常 8〜15%</span>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveCostSettings()">保存してダッシュボードを更新</button>
+  </div>
+</div>
+
+</div><!-- /main -->
+</div><!-- /body -->
+</div><!-- /app -->
+
+<!-- Add/Edit Account Modal -->
+<div class="modal-overlay" id="account-modal">
+  <div class="modal">
+    <div class="modal-title" id="account-modal-title">アカウントを追加</div>
+    <div class="form-group">
+      <label>アカウント名（店舗名など）</label>
+      <input type="text" id="acc-name" placeholder="例: メインショップ、副業アカウント">
+    </div>
+    <div class="form-group">
+      <label>Seller ID</label>
+      <input type="text" id="acc-seller-id" placeholder="例: A2LF1TDDMCBMMT">
+    </div>
+    <div class="form-group">
+      <label>Client ID (LWA)</label>
+      <input type="text" id="acc-client-id" placeholder="amzn1.application-oa2-client.xxxx">
+    </div>
+    <div class="form-group">
+      <label>Client Secret</label>
+      <input type="password" id="acc-client-secret" placeholder="シークレットキー">
+    </div>
+    <div class="form-group">
+      <label>Refresh Token</label>
+      <input type="password" id="acc-refresh-token" placeholder="Atzr|xxxx">
+    </div>
+    <div class="form-group">
+      <label>Marketplace ID</label>
+      <input type="text" id="acc-marketplace" value="A1VC38T7YXB528" placeholder="A1VC38T7YXB528（日本）">
+    </div>
+    <div id="account-modal-result"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeAccountModal()">キャンセル</button>
+      <button class="btn btn-secondary" onclick="testAccountConnection()" id="test-conn-btn">接続テスト</button>
+      <button class="btn btn-primary" onclick="saveAccount()" id="save-acc-btn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit order modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">仕入れ値・送料を編集</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:0.9rem;font-family:'JetBrains Mono',monospace;word-break:break-all" id="edit-sku"></div>
+    <div class="form-group"><label>仕入れ値 (¥)</label><input type="number" id="edit-cost" min="0"></div>
+    <div class="form-group"><label>送料 (¥)</label><input type="number" id="edit-ship" min="0"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeEditModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =============================================
+// CONSTANTS
+// =============================================
+const ACCOUNT_COLORS = ['#FF9900','#1D9E75','#3469c7','#9b59b6','#e74c3c'];
+const MAX_ACCOUNTS = 999;
+const PROXY = 'https://corsproxy.io/?';
+// SP-APIは直接ブラウザから呼べないためCORSプロキシを使用
+// 本番運用ではVercelのapi/orders.jsを使う方が安全
+
+// =============================================
+// STATE
+// =============================================
+let accounts = [];      // [{id,name,sellerId,clientId,clientSecret,refreshToken,marketplaceId,orders,lastSync}]
+let currentAccountId = null;
+let overrides = {};     // {accountId: {orderId_sku: {cost,ship}}}
+let costSettings = {};  // {accountId: {newCost,newShip,usedShip,feeRate}}
+let orderFilter = 'all';
+let sortOrder = 'desc';
+let editingOrder = null;
+let editingAccountId = null; // for account modal
+
+// =============================================
+// SKU LOGIC
+// =============================================
+function parseSKU(sku) {
+  if (!sku) return { type:'unknown' };
+  if (/^m_[mz]/.test(sku) && sku.indexOf('-') > -1) return { type:'used' };
+  if (/^m_[mz]/.test(sku)) return { type:'new' };
+  if (sku.startsWith('r_')) return { type:'new' };
+  if (sku.startsWith('z_z')) return { type:'new' };
+  if (sku.startsWith('q_')) return { type:'new' };
+  return { type:'unknown' };
+}
+
+function getCfg(accountId) {
+  return costSettings[accountId] || { newCost:0, newShip:0, usedShip:0, feeRate:15 };
+}
+
+function processOrders(rawOrders, accountId) {
+  const cfg = getCfg(accountId);
+  const accOverrides = overrides[accountId] || {};
+  const result = [];
+  for (const order of rawOrders) {
+    for (const item of (order.items || [])) {
+      const { type } = parseSKU(item.sku);
+      const key = order.id + '_' + item.sku;
+      const ov = accOverrides[key] || {};
+      const cost = ov.cost !== undefined ? ov.cost : cfg.newCost;
+      const shipping = ov.ship !== undefined ? ov.ship : (type==='used' ? cfg.usedShip : cfg.newShip);
+      const price = (item.price || 0) * (item.qty || 1);
+      const fee = Math.round(price * (cfg.feeRate||15) / 100);
+      const profit = price - cost - fee - shipping;
+      result.push({ id:order.id, date:order.date, status:order.status, sku:item.sku, product:item.title||'', qty:item.qty||1, type, price, cost, shipping, fee, profit });
+    }
+  }
+  return result;
+}
+
+// =============================================
+// FORMAT
+// =============================================
+function fmt(n) { return '¥' + Math.round(Math.abs(n)).toLocaleString('ja-JP'); }
+function sum(arr, fn) { return arr.reduce((a,o)=>a+fn(o),0); }
+const STATUS_LABEL = { Unshipped:'未発送', PartiallyShipped:'一部発送', Shipped:'発送済', Canceled:'キャンセル', unshipped:'未発送', shipped:'発送済', delivered:'配送完了', cancelled:'キャンセル' };
+const TYPE_LABEL = { new:['新品','b-new'], used:['中古','b-used'], unknown:['不明',''] };
+
+// =============================================
+// SP-API (Direct from browser via CORS proxy)
+// =============================================
+async function fetchAccessToken(acc) {
+  const params = new URLSearchParams({
+    grant_type:'refresh_token', refresh_token:acc.refreshToken,
+    client_id:acc.clientId, client_secret:acc.clientSecret,
+  });
+  const res = await fetch(PROXY + 'https://api.amazon.com/auth/o2/token', {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:params.toString(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || 'トークン取得失敗');
+  return data.access_token;
+}
+
+async function fetchOrdersFromAPI(acc) {
+  const accessToken = await fetchAccessToken(acc);
+  const endpoint = 'https://sellingpartnerapi-fe.amazon.com';
+  const createdAfter = new Date(Date.now() - 60*24*60*60*1000).toISOString();
+
+  const url = new URL(`${endpoint}/orders/v0/orders`);
+  url.searchParams.set('MarketplaceIds', acc.marketplaceId || 'A1VC38T7YXB528');
+  url.searchParams.set('CreatedAfter', createdAfter);
+  url.searchParams.set('OrderStatuses', 'Unshipped,PartiallyShipped,Shipped,Canceled');
+  url.searchParams.set('MaxResultsPerPage', '100');
+
+  const ordersRes = await fetch(PROXY + url.toString(), {
+    headers:{ 'x-amz-access-token':accessToken, 'Content-Type':'application/json' }
+  });
+  const ordersData = await ordersRes.json();
+  if (!ordersRes.ok) throw new Error(JSON.stringify(ordersData));
+
+  const orders = ordersData.payload?.Orders || [];
+
+  const enriched = await Promise.all(orders.map(async order => {
+    try {
+      const itemsRes = await fetch(PROXY + `${endpoint}/orders/v0/orders/${order.AmazonOrderId}/orderItems`, {
+        headers:{ 'x-amz-access-token':accessToken }
+      });
+      const itemsData = await itemsRes.json();
+      const items = itemsData.payload?.OrderItems || [];
+      return {
+        id: order.AmazonOrderId,
+        date: order.PurchaseDate?.slice(0,10) || '',
+        status: order.OrderStatus,
+        items: items.map(item => ({
+          asin: item.ASIN, sku: item.SellerSKU || '',
+          title: item.Title || '', qty: item.QuantityOrdered || 1,
+          price: parseFloat(item.ItemPrice?.Amount || 0),
+        })),
+      };
+    } catch { return { id:order.AmazonOrderId, date:order.PurchaseDate?.slice(0,10)||'', status:order.OrderStatus, items:[] }; }
+  }));
+
+  return enriched;
+}
+
+// =============================================
+// SYNC
+// =============================================
+async function syncOrders() {
+  const acc = getCurrentAccount();
+  if (!acc) { showToast('アカウントを選択してください'); return; }
+  if (!acc.clientId || !acc.refreshToken) {
+    showToast('APIキーが設定されていません。アカウント設定から入力してください');
+    showPage('accounts');
+    return;
+  }
+
+  const btn = document.getElementById('sync-btn');
+  const icon = document.getElementById('sync-icon');
+  btn.disabled = true;
+  icon.style.animation = 'spin 0.7s linear infinite';
+  showToast('注文データを取得中...');
+
+  try {
+    const orders = await fetchOrdersFromAPI(acc);
+    acc.orders = orders;
+    acc.lastSync = new Date().toISOString();
+    saveToStorage();
+    updateApiStatus(true);
+    renderAll();
+    showToast(`✓ ${orders.length}件の注文を取得しました`);
+  } catch(err) {
+    console.error(err);
+    showToast('⚠ 取得失敗: ' + err.message);
+    updateApiStatus(false);
+  } finally {
+    btn.disabled = false;
+    icon.style.animation = '';
+  }
+}
+
+// =============================================
+// ACCOUNT MANAGEMENT
+// =============================================
+function getCurrentAccount() {
+  return accounts.find(a=>a.id===currentAccountId) || null;
+}
+
+function switchAccount(id) {
+  currentAccountId = id;
+  saveToStorage();
+  renderAccountTabs();
+  loadCostSettingsUI();
+  updateApiStatus(!!(getCurrentAccount()?.orders?.length));
+  renderAll();
+}
+
+function renderAccountTabs() {
+  const container = document.getElementById('account-tabs');
+  container.innerHTML = accounts.map((acc,i) => {
+    const hasKey = !!(acc.clientId && acc.refreshToken);
+    const isActive = acc.id === currentAccountId;
+    return `<button class="account-tab ${isActive?'active':''} ${hasKey?'has-key':''}"
+      onclick="switchAccount('${acc.id}')"
+      style="${isActive?'':''}">
+      <div class="dot" style="background:${ACCOUNT_COLORS[i%5]}"></div>
+      <span>${acc.name || 'アカウント'+(i+1)}</span>
+    </button>`;
+  }).join('');
+}
+
+function renderAccountsList() {
+  const container = document.getElementById('accounts-list');
+  container.innerHTML = accounts.map((acc,i) => {
+    const isCurrent = acc.id === currentAccountId;
+    const hasKey = !!(acc.clientId && acc.refreshToken);
+    const lastSync = acc.lastSync ? new Date(acc.lastSync).toLocaleString('ja-JP') : '未同期';
+    return `<div class="account-card ${isCurrent?'current':''}">
+      <div class="account-card-header">
+        <div class="account-name-row">
+          <div class="account-color" style="background:${ACCOUNT_COLORS[i%5]}"></div>
+          <strong style="font-size:14px">${acc.name||'アカウント'+(i+1)}</strong>
+          ${isCurrent?'<span class="badge b-new">使用中</span>':''}
+          ${hasKey?'<span class="badge" style="background:var(--new-bg);color:var(--new-text)">✓ API設定済</span>':'<span class="badge" style="background:var(--warn-bg);color:var(--warn)">未設定</span>'}
+        </div>
+        <div style="display:flex;gap:6px">
+          ${!isCurrent?`<button class="btn btn-secondary btn-sm" onclick="switchAccount('${acc.id}')">切替</button>`:''}
+          <button class="btn btn-secondary btn-sm" onclick="editAccount('${acc.id}')">編集</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAccount('${acc.id}')">削除</button>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);display:grid;grid-template-columns:1fr 1fr;gap:4px">
+        <span>Seller ID: <span class="mono">${acc.sellerId||'--'}</span></span>
+        <span>最終同期: ${lastSync}</span>
+        <span>注文件数: ${(acc.orders||[]).length}件</span>
+        <span>Marketplace: <span class="mono">${acc.marketplaceId||'--'}</span></span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const remaining = MAX_ACCOUNTS - accounts.length;
+  const addBtn = document.getElementById('add-account-main-btn');
+  
+  
+}
+
+function showAddAccountModal() {
+  
+  editingAccountId = null;
+  document.getElementById('account-modal-title').textContent = 'アカウントを追加';
+  document.getElementById('acc-name').value = '';
+  document.getElementById('acc-seller-id').value = '';
+  document.getElementById('acc-client-id').value = '';
+  document.getElementById('acc-client-secret').value = '';
+  document.getElementById('acc-refresh-token').value = '';
+  document.getElementById('acc-marketplace').value = 'A1VC38T7YXB528';
+  document.getElementById('account-modal-result').innerHTML = '';
+  document.getElementById('account-modal').classList.add('open');
+}
+
+function editAccount(id) {
+  const acc = accounts.find(a=>a.id===id);
+  if (!acc) return;
+  editingAccountId = id;
+  document.getElementById('account-modal-title').textContent = 'アカウントを編集';
+  document.getElementById('acc-name').value = acc.name||'';
+  document.getElementById('acc-seller-id').value = acc.sellerId||'';
+  document.getElementById('acc-client-id').value = acc.clientId||'';
+  document.getElementById('acc-client-secret').value = acc.clientSecret||'';
+  document.getElementById('acc-refresh-token').value = acc.refreshToken||'';
+  document.getElementById('acc-marketplace').value = acc.marketplaceId||'A1VC38T7YXB528';
+  document.getElementById('account-modal-result').innerHTML = '';
+  document.getElementById('account-modal').classList.add('open');
+}
+
+function deleteAccount(id) {
+  if (!confirm('このアカウントを削除しますか？注文データも削除されます。')) return;
+  accounts = accounts.filter(a=>a.id!==id);
+  if (currentAccountId===id) currentAccountId = accounts[0]?.id || null;
+  saveToStorage();
+  renderAccountTabs();
+  renderAccountsList();
+  renderAll();
+  showToast('アカウントを削除しました');
+}
+
+function saveAccount() {
+  const name = document.getElementById('acc-name').value.trim();
+  const sellerId = document.getElementById('acc-seller-id').value.trim();
+  const clientId = document.getElementById('acc-client-id').value.trim();
+  const clientSecret = document.getElementById('acc-client-secret').value.trim();
+  const refreshToken = document.getElementById('acc-refresh-token').value.trim();
+  const marketplaceId = document.getElementById('acc-marketplace').value.trim() || 'A1VC38T7YXB528';
+
+  if (!name) { showToast('アカウント名を入力してください'); return; }
+
+  if (editingAccountId) {
+    const acc = accounts.find(a=>a.id===editingAccountId);
+    if (acc) { Object.assign(acc, {name,sellerId,clientId,clientSecret,refreshToken,marketplaceId}); }
+  } else {
+    const newAcc = { id: Date.now().toString(), name, sellerId, clientId, clientSecret, refreshToken, marketplaceId, orders:[], lastSync:null };
+    accounts.push(newAcc);
+    if (!currentAccountId) currentAccountId = newAcc.id;
+  }
+
+  saveToStorage();
+  closeAccountModal();
+  renderAccountTabs();
+  renderAccountsList();
+  renderAll();
+  showToast('保存しました');
+}
+
+async function testAccountConnection() {
+  const clientId = document.getElementById('acc-client-id').value.trim();
+  const clientSecret = document.getElementById('acc-client-secret').value.trim();
+  const refreshToken = document.getElementById('acc-refresh-token').value.trim();
+  const resultEl = document.getElementById('account-modal-result');
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    resultEl.innerHTML = '<div class="error-box">Client ID、Client Secret、Refresh Tokenを入力してください</div>';
+    return;
+  }
+
+  resultEl.innerHTML = '<div class="loading"><div class="spinner"></div>接続テスト中...</div>';
+
+  try {
+    const params = new URLSearchParams({ grant_type:'refresh_token', refresh_token:refreshToken, client_id:clientId, client_secret:clientSecret });
+    const res = await fetch(PROXY + 'https://api.amazon.com/auth/o2/token', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:params.toString()
+    });
+    const data = await res.json();
+    if (res.ok && data.access_token) {
+      resultEl.innerHTML = '<div class="success-box">✓ 接続成功！認証トークンの取得に成功しました。</div>';
+    } else {
+      resultEl.innerHTML = `<div class="error-box">✗ 失敗: ${data.error_description||JSON.stringify(data)}</div>`;
+    }
+  } catch(err) {
+    resultEl.innerHTML = `<div class="error-box">✗ エラー: ${err.message}</div>`;
+  }
+}
+
+function closeAccountModal() {
+  document.getElementById('account-modal').classList.remove('open');
+  editingAccountId = null;
+}
+
+// =============================================
+// COST SETTINGS
+// =============================================
+function loadCostSettingsUI() {
+  const cfg = getCfg(currentAccountId);
+  document.getElementById('cfg-new-cost').value = cfg.newCost||0;
+  document.getElementById('cfg-new-ship').value = cfg.newShip||0;
+  document.getElementById('cfg-used-ship').value = cfg.usedShip||0;
+  document.getElementById('cfg-fee-rate').value = cfg.feeRate||15;
+}
+
+function saveCostSettings() {
+  if (!currentAccountId) return;
+  costSettings[currentAccountId] = {
+    newCost: parseInt(document.getElementById('cfg-new-cost').value)||0,
+    newShip: parseInt(document.getElementById('cfg-new-ship').value)||0,
+    usedShip: parseInt(document.getElementById('cfg-used-ship').value)||0,
+    feeRate: parseFloat(document.getElementById('cfg-fee-rate').value)||15,
+  };
+  saveToStorage();
+  renderAll();
+  showToast('設定を保存しました');
+}
+
+// =============================================
+// RENDER
+// =============================================
+function getFilteredOrders() {
+  const acc = getCurrentAccount();
+  if (!acc || !acc.orders) return [];
+  const month = document.getElementById('month-select').value;
+  const orders = processOrders(acc.orders, currentAccountId);
+  return orders.filter(o => o.date && o.date.startsWith(month));
+}
+
+function renderAll() {
+  const acc = getCurrentAccount();
+  const orders = getFilteredOrders();
+  const month = document.getElementById('month-select').value;
+  const [y,mo] = month.split('-');
+
+  document.getElementById('dash-title').textContent = `${y}年${parseInt(mo)}月 — ダッシュボード`;
+  document.getElementById('dash-sub').textContent = acc ? `${acc.name} / ${orders.length}件` : 'アカウントを選択してください';
+  document.getElementById('dash-no-api').style.display = (!acc || !acc.clientId) ? 'flex' : 'none';
+
+  const newO = orders.filter(o=>o.type==='new');
+  const usedO = orders.filter(o=>o.type==='used');
+  const totalRev = sum(orders,o=>o.price);
+  const totalProfit = sum(orders,o=>o.profit);
+  const margin = totalRev>0?Math.round(totalProfit/totalRev*100):0;
+
+  document.getElementById('kpi-rev').textContent = orders.length?fmt(totalRev):'--';
+  document.getElementById('kpi-cnt').textContent = orders.length+'件';
+  document.getElementById('kpi-profit').textContent = orders.length?fmt(totalProfit):'--';
+  document.getElementById('kpi-margin').textContent = `利益率 ${margin}%`;
+  document.getElementById('kpi-new').textContent = newO.length?fmt(sum(newO,o=>o.profit)):'--';
+  document.getElementById('kpi-new-cnt').textContent = newO.length+'件';
+  document.getElementById('kpi-used').textContent = usedO.length?fmt(sum(usedO,o=>o.profit)):'--';
+  document.getElementById('kpi-used-cnt').textContent = usedO.length+'件';
+
+  const setPanel = (prefix,list) => {
+    document.getElementById(`d-${prefix}-rev`).textContent = list.length?fmt(sum(list,o=>o.price)):'--';
+    document.getElementById(`d-${prefix}-cost`).textContent = list.length?'-'+fmt(sum(list,o=>o.cost)):'--';
+    document.getElementById(`d-${prefix}-fee`).textContent = list.length?'-'+fmt(sum(list,o=>o.fee)):'--';
+    document.getElementById(`d-${prefix}-ship`).textContent = list.length?'-'+fmt(sum(list,o=>o.shipping)):'--';
+    document.getElementById(`d-${prefix}-net`).textContent = list.length?fmt(sum(list,o=>o.profit)):'--';
+  };
+  setPanel('new',newO); setPanel('used',usedO);
+
+  renderWeeklyChart(orders, month);
+  renderRecentTable(orders.slice(0,5));
+  renderOrdersTable();
+  renderProfitPage(orders);
+  renderAccountsList();
+
+  // Profit page KPIs
+  const totalCost = sum(orders,o=>o.cost+o.fee+o.shipping);
+  document.getElementById('pa-rev').textContent = orders.length?fmt(totalRev):'--';
+  document.getElementById('pa-cost').textContent = orders.length?'-'+fmt(totalCost):'--';
+  document.getElementById('pa-profit').textContent = orders.length?fmt(totalProfit):'--';
+  document.getElementById('pa-margin').textContent = margin+'%';
+}
+
+function renderWeeklyChart(orders, month) {
+  const [y,mo] = month.split('-').map(Number);
+  const weeks = [[1,7],[8,14],[15,21],[22,31]].map(([s,e])=>({label:`${mo}/${s}-${e}`,s,e}));
+  const newData = weeks.map(w=>sum(orders.filter(o=>{const d=parseInt(o.date?.slice(8,10)||0);return o.type==='new'&&d>=w.s&&d<=w.e;}),o=>o.profit));
+  const usedData = weeks.map(w=>sum(orders.filter(o=>{const d=parseInt(o.date?.slice(8,10)||0);return o.type==='used'&&d>=w.s&&d<=w.e;}),o=>o.profit));
+  const maxV = Math.max(...newData,...usedData,1);
+  document.getElementById('weekly-bars').innerHTML = weeks.map((_,i)=>`
+    <div class="bar-group">
+      <div class="bar" style="flex:1;height:${Math.round(newData[i]/maxV*120)}px;background:var(--new)" title="新品 ${fmt(newData[i])}"></div>
+      <div class="bar" style="flex:1;height:${Math.round(usedData[i]/maxV*120)}px;background:var(--used)" title="中古 ${fmt(usedData[i])}"></div>
+    </div>`).join('');
+  document.getElementById('weekly-labels').innerHTML = weeks.map(w=>`<div class="bar-x-item">${w.label}</div>`).join('');
+}
+
+function renderRecentTable(orders) {
+  document.getElementById('recent-tbody').innerHTML = orders.map(o=>{
+    const [tl,tc]=TYPE_LABEL[o.type]||['--',''];
+    return `<tr>
+      <td style="color:var(--text2);font-size:11px;white-space:nowrap">${o.date}</td>
+      <td><span class="badge ${tc}">${tl}</span></td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${o.product}">${o.product}</td>
+      <td style="font-weight:500">${fmt(o.price)}</td>
+      <td style="font-weight:600" class="${o.profit>=0?'pos':'neg'}">${fmt(o.profit)}</td>
+      <td><span class="badge b-${o.status}">${STATUS_LABEL[o.status]||o.status}</span></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:1.5rem">注文データがありません。「同期」ボタンを押してください。</td></tr>';
+}
+
+function toggleSort() {
+  sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+  var sl = document.getElementById('sort-label');
+  var si = document.getElementById('sort-icon');
+  if(sl) sl.textContent = sortOrder === 'desc' ? '新しい順' : '古い順';
+  if(si) si.textContent = sortOrder === 'desc' ? ' ↓' : ' ↑';
+  renderOrdersTable();
+}
+
+function saveInline(orderId, sku, field, value) {
+  if (!currentAccountId) return;
+  if (!overrides[currentAccountId]) overrides[currentAccountId] = {};
+  var key = orderId + '_' + sku;
+  if (!overrides[currentAccountId][key]) overrides[currentAccountId][key] = {};
+  overrides[currentAccountId][key][field] = parseInt(value) || 0;
+  saveToStorage();
+  renderAll();
+}
+
+function exportCSV() {
+  var acc = getCurrentAccount();
+  if (!acc) { showToast('アカウントを選択してください'); return; }
+  var TYPE_NAME = { new:'新品', used:'中古', unknown:'不明' };
+  var orders = getFilteredOrders();
+  if (orderFilter !== 'all') orders = orders.filter(function(o){ return o.type===orderFilter; });
+  orders.sort(function(a,b){ return sortOrder==='desc'?b.date.localeCompare(a.date):a.date.localeCompare(b.date); });
+  var headers = ['注文日','注文ID','種別','商品名','SKU','売価','仕入れ値','送料','Amazon手数料','純利益','利益率(%)','状態'];
+  var rows = orders.map(function(o){
+    return [
+      o.date, o.id, (TYPE_NAME[o.type]||'不明'),
+      '"' + (o.product||'').replace(/"/g,'""') + '"',
+      o.sku, o.price, o.cost, o.shipping, o.fee,
+      Math.round(o.profit),
+      o.price > 0 ? Math.round(o.profit/o.price*100) : 0,
+      (STATUS_LABEL[o.status]||o.status)
+    ];
+  });
+  var csv = [headers.join(',')].concat(rows.map(function(r){return r.join(',');})).join('\n');
+  var blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var month = document.getElementById('month-select').value;
+  a.href = url;
+  a.download = 'amazon_orders_' + (acc.name||'') + '_' + month + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV ' + orders.length + '件をエクスポートしました');
+}
+
+function renderOrdersTable() {
+  var q=(document.getElementById('order-search')?document.getElementById('order-search').value:'').toLowerCase();
+  var orders=getFilteredOrders();
+  if(orderFilter!=='all') orders=orders.filter(function(o){return o.type===orderFilter;});
+  if(q) orders=orders.filter(function(o){return o.id.toLowerCase().indexOf(q)>-1||o.product.toLowerCase().indexOf(q)>-1||(o.sku||'').toLowerCase().indexOf(q)>-1;});
+  orders.sort(function(a,b){return sortOrder==='desc'?b.date.localeCompare(a.date):a.date.localeCompare(b.date);});
+  var html = '';
+  for(var i=0;i<orders.length;i++){
+    var o=orders[i];
+    var tl=(TYPE_LABEL[o.type]||['不明',''])[0];
+    var tc=(TYPE_LABEL[o.type]||['不明',''])[1];
+    html += '<tr>';
+    html += '<td style="color:var(--text2);font-size:11px;white-space:nowrap">'+o.date+'</td>';
+    html += '<td><span class="badge '+tc+'">'+tl+'</span></td>';
+    html += '<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.product+'">'+o.product+'</td>';
+    html += '<td class="mono" style="color:var(--text2);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.sku+'">'+o.sku+'</td>';
+    html += '<td style="font-weight:500;white-space:nowrap">'+fmt(o.price)+'</td>';
+    html += '<td><input type="number" value="'+o.cost+'" min="0"'
+          + ' style="width:72px;padding:3px 5px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);font-family:inherit"'
+          + ' onchange="saveInline(\''+o.id+'\',\''+o.sku+'\',\'cost\',this.value)"'
+          + ' onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border2)\'"></td>';
+    html += '<td><input type="number" value="'+o.shipping+'" min="0"'
+          + ' style="width:62px;padding:3px 5px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);font-family:inherit"'
+          + ' onchange="saveInline(\''+o.id+'\',\''+o.sku+'\',\'ship\',this.value)"'
+          + ' onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border2)\'"></td>';
+    html += '<td style="color:var(--danger);white-space:nowrap">'+fmt(o.fee)+'</td>';
+    html += '<td style="font-weight:600;white-space:nowrap" class="'+(o.profit>=0?'pos':'neg')+'">'+fmt(o.profit)+'</td>';
+    html += '<td><span class="badge b-'+o.status+'">'+(STATUS_LABEL[o.status]||o.status)+'</span></td>';
+    html += '</tr>';
+  }
+  document.getElementById('orders-tbody').innerHTML = html || '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:1.5rem">該当する注文がありません</td></tr>';
+}
+
+function setOrderFilter(f) {
+  orderFilter=f;
+  ['all','new','used'].forEach(x=>document.getElementById('of-'+x)?.classList.toggle('active',x===f));
+  renderOrdersTable();
+}
+
+function renderProfitPage(orders) {
+  const costs=[
+    {label:'仕入原価',val:sum(orders,o=>o.cost),color:'#c94040'},
+    {label:'Amazon手数料',val:sum(orders,o=>o.fee),color:'#3469c7'},
+    {label:'送料',val:sum(orders,o=>o.shipping),color:'#EF9F27'},
+  ];
+  const maxC=Math.max(...costs.map(c=>c.val),1);
+  document.getElementById('cost-breakdown').innerHTML=costs.map(c=>`
+    <div style="margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span style="display:flex;align-items:center;gap:4px"><span class="leg-sq" style="background:${c.color}"></span>${c.label}</span>
+        <span style="font-weight:600">${fmt(c.val)}</span>
+      </div>
+      <div class="progress"><div class="progress-fill" style="width:${Math.round(c.val/maxC*100)}%;background:${c.color}"></div></div>
+    </div>`).join('');
+
+  const newO=orders.filter(o=>o.type==='new'), usedO=orders.filter(o=>o.type==='used');
+  document.getElementById('nv-comparison').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="background:var(--new-bg);border-radius:var(--radius-sm);padding:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--new);margin-bottom:5px">新品 ${newO.length}件</div>
+        <div style="font-size:15px;font-weight:700;color:var(--new)">${newO.length?fmt(sum(newO,o=>o.profit)):'--'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">利益率 ${newO.length?Math.round(sum(newO,o=>o.profit)/Math.max(sum(newO,o=>o.price),1)*100):0}%</div>
+      </div>
+      <div style="background:var(--used-bg);border-radius:var(--radius-sm);padding:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--used);margin-bottom:5px">中古 ${usedO.length}件</div>
+        <div style="font-size:15px;font-weight:700;color:var(--used)">${usedO.length?fmt(sum(usedO,o=>o.profit)):'--'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">利益率 ${usedO.length?Math.round(sum(usedO,o=>o.profit)/Math.max(sum(usedO,o=>o.price),1)*100):0}%</div>
+      </div>
+    </div>`;
+
+  const sorted=[...orders].sort((a,b)=>b.profit-a.profit);
+  document.getElementById('profit-tbody').innerHTML=sorted.map((o,i)=>{
+    const [tl,tc]=TYPE_LABEL[o.type]||['--',''];
+    const rate=o.price>0?Math.round(o.profit/o.price*100):0;
+    return `<tr>
+      <td style="font-weight:600;color:${i<3?'var(--accent-dark)':'var(--text3)'}">#${i+1}</td>
+      <td><span class="badge ${tc}">${tl}</span></td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${o.product}">${o.product}</td>
+      <td>${fmt(o.price)}</td>
+      <td style="font-weight:700" class="${o.profit>=0?'pos':'neg'}">${fmt(o.profit)}</td>
+      <td><div style="display:flex;align-items:center;gap:5px">
+        <div class="progress" style="width:55px"><div class="progress-fill" style="width:${Math.max(0,Math.min(100,rate))}%;background:${rate>=20?'var(--new)':rate>=0?'var(--accent)':'var(--danger)'}"></div></div>
+        <span style="font-size:11px">${rate}%</span>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+// =============================================
+// EDIT MODAL
+// =============================================
+function openEditModal(id, sku) {
+  const orders = getFilteredOrders();
+  const o = orders.find(x=>x.id===id&&x.sku===sku);
+  editingOrder = {id,sku};
+  document.getElementById('edit-sku').textContent = sku;
+  document.getElementById('edit-cost').value = o?.cost||0;
+  document.getElementById('edit-ship').value = o?.shipping||0;
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); editingOrder=null; }
+function saveEdit() {
+  if (!editingOrder||!currentAccountId) return;
+  if (!overrides[currentAccountId]) overrides[currentAccountId]={};
+  overrides[currentAccountId][editingOrder.id+'_'+editingOrder.sku]={
+    cost:parseInt(document.getElementById('edit-cost').value)||0,
+    ship:parseInt(document.getElementById('edit-ship').value)||0,
+  };
+  saveToStorage();
+  closeEditModal();
+  renderAll();
+  showToast('保存しました');
+}
+
+// =============================================
+// STORAGE
+// =============================================
+function saveToStorage() {
+  try {
+    localStorage.setItem('amz_accounts', JSON.stringify(accounts));
+    localStorage.setItem('amz_current', currentAccountId||'');
+    localStorage.setItem('amz_overrides', JSON.stringify(overrides));
+    localStorage.setItem('amz_cost_settings', JSON.stringify(costSettings));
+  } catch(e) { console.error(e); }
+}
+
+function loadFromStorage() {
+  try {
+    const savedAccounts = localStorage.getItem('amz_accounts');
+    if (savedAccounts) accounts = JSON.parse(savedAccounts);
+    currentAccountId = localStorage.getItem('amz_current') || accounts[0]?.id || null;
+    const savedOverrides = localStorage.getItem('amz_overrides');
+    if (savedOverrides) overrides = JSON.parse(savedOverrides);
+    const savedCost = localStorage.getItem('amz_cost_settings');
+    if (savedCost) costSettings = JSON.parse(savedCost);
+  } catch(e) { console.error(e); }
+}
+
+// =============================================
+// UI HELPERS
+// =============================================
+function updateApiStatus(connected) {
+  document.getElementById('api-dot').className = 'status-dot ' + (connected?'dot-on':'dot-off');
+  document.getElementById('api-status-text').textContent = connected ? 'SP-API 接続中' : '未接続';
+}
+
+function buildMonthSelect() {
+  const sel = document.getElementById('month-select');
+  const now = new Date();
+  for (let i=0;i<6;i++) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = `${d.getFullYear()}年${d.getMonth()+1}月`;
+    sel.innerHTML += `<option value="${val}" ${i===0?'selected':''}>${label}</option>`;
+  }
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id)?.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{ if(n.getAttribute('onclick')?.includes("'"+id+"'")) n.classList.add('active'); });
+  if (id==='orders') renderOrdersTable();
+  if (id==='accounts') renderAccountsList();
+  if (id==='sku-settings') loadCostSettingsUI();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+document.getElementById('account-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAccountModal();});
+document.getElementById('edit-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEditModal();});
+
+// =============================================
+// INIT
+// =============================================
+document.addEventListener('DOMContentLoaded', ()=>{
+  buildMonthSelect();
+  loadFromStorage();
+  renderAccountTabs();
+  loadCostSettingsUI();
+  updateApiStatus(!!(getCurrentAccount()?.orders?.length));
+  renderAll();
+});
+</script>
+</body>
+</html>
