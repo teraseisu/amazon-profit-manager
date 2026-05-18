@@ -1,11 +1,10 @@
-// api/orders.js - 複数アカウント対応
+// api/orders.js - 複数アカウント対応・ページネーション対応
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  // アカウント番号を取得（1〜5、デフォルトは1）
   const accountNum = req.query.account || '1';
   const suffix = accountNum === '1' ? '' : '_' + accountNum;
 
@@ -46,29 +45,44 @@ export default async function handler(req, res) {
     }
     const accessToken = tokenData.access_token;
 
-    // Step2: 注文一覧取得（過去60日）
+    // Step2: 注文一覧取得（過去90日・ページネーション対応）
     const createdAfter = req.query.createdAfter ||
-      new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+      new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
     const endpoint = 'https://sellingpartnerapi-fe.amazon.com';
-    const ordersUrl = new URL(`${endpoint}/orders/v0/orders`);
-    ordersUrl.searchParams.set('MarketplaceIds', MARKETPLACE_ID);
-    ordersUrl.searchParams.set('CreatedAfter', createdAfter);
-    ordersUrl.searchParams.set('OrderStatuses', 'Unshipped,PartiallyShipped,Shipped,Canceled');
-    ordersUrl.searchParams.set('MaxResultsPerPage', '100');
+    let allOrders = [];
+    let nextToken = null;
+    let pageCount = 0;
+    const MAX_PAGES = 10; // 最大10ページ（1000件）
 
-    const ordersRes = await fetch(ordersUrl.toString(), {
-      headers: { 'x-amz-access-token': accessToken, 'Content-Type': 'application/json' },
-    });
-    const ordersData = await ordersRes.json();
-    if (!ordersRes.ok) {
-      return res.status(ordersRes.status).json({ error: '注文取得失敗', detail: ordersData });
-    }
+    do {
+      const ordersUrl = new URL(`${endpoint}/orders/v0/orders`);
+      ordersUrl.searchParams.set('MarketplaceIds', MARKETPLACE_ID);
+      ordersUrl.searchParams.set('CreatedAfter', createdAfter);
+      ordersUrl.searchParams.set('OrderStatuses', 'Unshipped,PartiallyShipped,Shipped,Canceled');
+      ordersUrl.searchParams.set('MaxResultsPerPage', '100');
+      if (nextToken) {
+        ordersUrl.searchParams.set('NextToken', nextToken);
+      }
 
-    const orders = ordersData.payload?.Orders || [];
+      const ordersRes = await fetch(ordersUrl.toString(), {
+        headers: { 'x-amz-access-token': accessToken, 'Content-Type': 'application/json' },
+      });
+      const ordersData = await ordersRes.json();
+
+      if (!ordersRes.ok) {
+        return res.status(ordersRes.status).json({ error: '注文取得失敗', detail: ordersData });
+      }
+
+      const pageOrders = ordersData.payload?.Orders || [];
+      allOrders = allOrders.concat(pageOrders);
+      nextToken = ordersData.payload?.NextToken || null;
+      pageCount++;
+
+    } while (nextToken && pageCount < MAX_PAGES);
 
     // Step3: 各注文のOrderItemsを取得
-    const enriched = await Promise.all(orders.map(async order => {
+    const enriched = await Promise.all(allOrders.map(async order => {
       try {
         const itemsRes = await fetch(
           `${endpoint}/orders/v0/orders/${order.AmazonOrderId}/orderItems`,
@@ -93,7 +107,12 @@ export default async function handler(req, res) {
       }
     }));
 
-    return res.status(200).json({ orders: enriched, total: enriched.length, account: accountNum });
+    return res.status(200).json({
+      orders: enriched,
+      total: enriched.length,
+      pages: pageCount,
+      account: accountNum
+    });
 
   } catch (err) {
     return res.status(500).json({ error: 'サーバーエラー', detail: err.message });
