@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon 利益管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f5f4f0;--surface:#fff;--surface2:#f0eeea;
+  --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);
+  --text:#1a1917;--text2:#6b6960;--text3:#9e9b93;
+  --accent:#FF9900;--accent-dark:#c87700;--accent-bg:#fff8ec;
+  --new:#1D9E75;--new-bg:#e8f8f1;--new-text:#0a5c40;
+  --used:#3469c7;--used-bg:#eaf0fc;--used-text:#1a3d8a;
+  --danger:#c94040;--danger-bg:#fceaea;
+  --warn:#a06020;--warn-bg:#fdf3e3;
+  --radius:10px;--radius-sm:6px;
+  --shadow:0 1px 3px rgba(0,0,0,0.07);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;min-height:100vh}
+
+.app{display:flex;min-height:100vh;flex-direction:column}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 1.25rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:100;box-shadow:var(--shadow);gap:12px}
+.logo{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.logo-mark{width:30px;height:30px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff}
+.logo-text{font-weight:700;font-size:14px;white-space:nowrap}
+.logo-text span{color:var(--accent)}
+
+.account-switcher{display:flex;align-items:center;gap:6px;flex:1;max-width:520px}
+.account-tabs{display:flex;gap:3px;flex:1;overflow-x:auto}
+.account-tabs::-webkit-scrollbar{display:none}
+.account-tab{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:var(--radius-sm);font-size:12px;color:var(--text2);cursor:pointer;border:1px solid var(--border2);background:var(--surface);white-space:nowrap;transition:all 0.12s;flex-shrink:0;font-family:'Noto Sans JP',sans-serif}
+.account-tab:hover{background:var(--surface2)}
+.account-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.acc-dot{width:6px;height:6px;border-radius:50%}
+
+.topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.api-status{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);background:var(--surface2);padding:4px 9px;border-radius:20px;white-space:nowrap}
+.status-dot{width:6px;height:6px;border-radius:50%}
+.dot-on{background:#1D9E75}.dot-off{background:var(--danger)}
+.month-select{padding:4px 8px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);font-size:12px;color:var(--text);font-family:'Noto Sans JP',sans-serif}
+.sync-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);font-size:12px;cursor:pointer;color:var(--text2);font-family:'Noto Sans JP',sans-serif;transition:all 0.15s;white-space:nowrap}
+.sync-btn:hover{background:var(--surface2)}
+
+.body{display:flex;flex:1}
+.sidebar{width:190px;background:var(--surface);border-right:1px solid var(--border);padding:1rem 0;position:sticky;top:54px;height:calc(100vh - 54px);overflow-y:auto;flex-shrink:0}
+.nav-group{margin-bottom:1.25rem;padding:0 0.75rem}
+.nav-label{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;padding:0 8px;margin-bottom:5px}
+.nav-item{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:var(--radius-sm);font-size:13px;color:var(--text2);cursor:pointer;transition:all 0.12s}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:var(--accent-bg);color:var(--accent-dark);font-weight:500}
+.nav-item svg{width:15px;height:15px;flex-shrink:0}
+
+.main{flex:1;padding:1.25rem;overflow:auto;min-width:0}
+.page{display:none}
+.page.active{display:block;animation:fadeIn 0.18s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.page-title{font-size:17px;font-weight:700;margin-bottom:3px}
+.page-sub{font-size:12px;color:var(--text2);margin-bottom:1.1rem}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.1rem;box-shadow:var(--shadow);margin-bottom:1rem}
+.card-title{font-size:13px;font-weight:600;margin-bottom:0.9rem}
+.section-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.9rem}
+
+.metric-grid{display:grid;gap:8px;margin-bottom:1rem}
+.metric-card{background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;border:1px solid var(--border)}
+.metric-label{font-size:11px;color:var(--text2);margin-bottom:5px;display:flex;align-items:center;gap:4px}
+.metric-label .dot{width:6px;height:6px;border-radius:50%}
+.metric-value{font-size:20px;font-weight:700;letter-spacing:-0.5px}
+.metric-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.pos{color:#0a5c40}.neg{color:var(--danger)}
+
+.two-panels{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem}
+.panel-new{border-left:3px solid var(--new)}
+.panel-used{border-left:3px solid var(--used)}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
+.stat-row:last-child{border-bottom:none;font-weight:600;font-size:13px}
+.stat-label{color:var(--text2)}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;padding:7px 8px;border-bottom:1px solid var(--border2);white-space:nowrap}
+td{padding:8px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface2)}
+.mono{font-family:'JetBrains Mono',monospace;font-size:11px}
+
+.badge{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;white-space:nowrap}
+.b-new{background:var(--new-bg);color:var(--new-text)}
+.b-used{background:var(--used-bg);color:var(--used-text)}
+.b-unknown{background:var(--surface2);color:var(--text3)}
+.b-Unshipped,.b-unshipped{background:var(--warn-bg);color:var(--warn)}
+.b-Shipped,.b-shipped{background:#eaf0fc;color:#1a3d8a}
+.b-Canceled,.b-cancelled{background:var(--danger-bg);color:var(--danger)}
+.b-PartiallyShipped{background:var(--warn-bg);color:var(--warn)}
+
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--radius-sm);font-size:13px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all 0.15s;border:1px solid transparent}
+.btn-primary{background:var(--accent);color:#fff;font-weight:600}
+.btn-primary:hover{background:var(--accent-dark)}
+.btn-secondary{background:var(--surface);border-color:var(--border2);color:var(--text)}
+.btn-secondary:hover{background:var(--surface2)}
+.btn-sm{padding:4px 9px;font-size:12px}
+.btn-danger{background:var(--danger-bg);border-color:var(--danger);color:var(--danger)}
+.btn-danger:hover{background:var(--danger);color:#fff}
+
+.filter-tabs{display:flex;gap:3px;margin-bottom:0.9rem}
+.filter-tab{padding:4px 11px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border2);background:var(--surface);color:var(--text2);font-family:'Noto Sans JP',sans-serif;transition:all 0.12s}
+.filter-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+.search-wrap{position:relative}
+.search-wrap svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--text3);pointer-events:none}
+.search-input{width:100%;padding:6px 8px 6px 27px;font-size:13px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-family:'Noto Sans JP',sans-serif}
+.search-input:focus{outline:none;border-color:var(--accent)}
+
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:130px;padding:0 2px}
+.bar-group{flex:1;display:flex;gap:2px;align-items:flex-end}
+.bar{border-radius:3px 3px 0 0;min-height:2px}
+.bar:hover{opacity:0.75}
+.bar-x{display:flex;gap:6px;padding:0 2px;margin-top:4px}
+.bar-x-item{flex:1;text-align:center;font-size:10px;color:var(--text3)}
+.chart-legend{display:flex;gap:12px;font-size:11px;color:var(--text2);margin-bottom:8px}
+.leg-sq{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+
+.progress{height:4px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:4px}
+.progress-fill{height:100%;border-radius:3px}
+
+label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px;font-weight:500}
+input[type=text],input[type=number],input[type=password],select,textarea{padding:7px 10px;font-size:13px;font-family:'Noto Sans JP',sans-serif;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);width:100%}
+input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,153,0,0.10)}
+.form-group{margin-bottom:10px}
+
+.settings-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem;margin-bottom:1rem;box-shadow:var(--shadow)}
+.settings-title{font-size:13px;font-weight:700;margin-bottom:0.9rem;display:flex;align-items:center;gap:7px}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sku-rule{background:var(--surface2);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:7px;border:1px solid var(--border)}
+.code{font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--surface);padding:1px 5px;border-radius:3px;border:1px solid var(--border)}
+
+.info-box{background:var(--accent-bg);border:1px solid rgba(255,153,0,0.2);border-radius:var(--radius-sm);padding:9px 12px;font-size:12px;color:var(--accent-dark);display:flex;gap:7px;margin-bottom:0.9rem}
+.success-box{background:var(--new-bg);border:1px solid rgba(29,158,117,0.2);border-radius:var(--radius-sm);padding:9px 12px;font-size:12px;color:var(--new-text);margin-bottom:0.9rem}
+.error-box{background:var(--danger-bg);border:1px solid rgba(201,64,64,0.2);border-radius:var(--radius-sm);padding:9px 12px;font-size:12px;color:var(--danger);margin-bottom:0.9rem}
+
+.account-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:1rem 1.1rem;margin-bottom:10px;box-shadow:var(--shadow)}
+.account-card.current{border-color:var(--accent)}
+.account-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.account-name-row{display:flex;align-items:center;gap:8px}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:200;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius);padding:1.25rem;width:440px;max-width:95vw;box-shadow:var(--shadow-md)}
+.modal-title{font-size:15px;font-weight:700;margin-bottom:1rem}
+.modal-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:1rem}
+
+.loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:1.5rem;color:var(--text2);font-size:13px}
+.spinner{width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.toast{position:fixed;bottom:1.25rem;right:1.25rem;background:var(--text);color:#fff;padding:9px 14px;border-radius:var(--radius-sm);font-size:13px;z-index:999;box-shadow:var(--shadow-md);opacity:0;transition:opacity 0.25s;pointer-events:none;max-width:320px}
+.toast.show{opacity:1}
+.table-wrap{overflow-x:auto}
+
+@media(max-width:768px){
+  .sidebar{display:none}
+  .two-panels{grid-template-columns:1fr}
+  .metric-grid{grid-template-columns:repeat(2,1fr)}
+  .settings-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-mark">A</div>
+    <div class="logo-text">Amazon <span>利益管理</span></div>
+  </div>
+  <div class="account-switcher">
+    <div class="account-tabs" id="account-tabs"></div>
+  </div>
+  <div class="topbar-right">
+    <select class="month-select" id="month-select" onchange="renderAll()"></select>
+    <div class="api-status">
+      <div class="status-dot dot-off" id="api-dot"></div>
+      <span id="api-status-text">未接続</span>
+    </div>
+    <button class="sync-btn" onclick="syncOrders()" id="sync-btn">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="sync-icon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      同期
+    </button>
+  </div>
+</div>
+
+<div class="body">
+<div class="sidebar">
+  <div class="nav-group">
+    <div class="nav-label">メイン</div>
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>ダッシュボード
+    </div>
+    <div class="nav-item" onclick="showPage('orders')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>注文一覧
+    </div>
+    <div class="nav-item" onclick="showPage('profit')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>利益分析
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">設定</div>
+    <div class="nav-item" onclick="showPage('accounts')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>アカウント設定
+    </div>
+    <div class="nav-item" onclick="showPage('sku-settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>費用設定
+    </div>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="page-title" id="dash-title">ダッシュボード</div>
+  <div class="page-sub" id="dash-sub">アカウントを選択して同期してください</div>
+  <div id="dash-no-api" class="info-box" style="display:none">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <div>同期ボタンを押して注文データを取得してください。</div>
+  </div>
+  <div class="metric-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric-card"><div class="metric-label">総売上</div><div class="metric-value" id="kpi-rev">--</div><div class="metric-sub" id="kpi-cnt">--</div></div>
+    <div class="metric-card"><div class="metric-label">純利益（合計）</div><div class="metric-value pos" id="kpi-profit">--</div><div class="metric-sub" id="kpi-margin">利益率 --%</div></div>
+    <div class="metric-card"><div class="metric-label"><div class="dot" style="background:var(--new)"></div>新品 利益</div><div class="metric-value" style="color:var(--new)" id="kpi-new">--</div><div class="metric-sub" id="kpi-new-cnt">--</div></div>
+    <div class="metric-card"><div class="metric-label"><div class="dot" style="background:var(--used)"></div>中古 利益</div><div class="metric-value" style="color:var(--used)" id="kpi-used">--</div><div class="metric-sub" id="kpi-used-cnt">--</div></div>
+  </div>
+  <div class="two-panels">
+    <div class="card panel-new">
+      <div class="card-title" style="display:flex;align-items:center;gap:5px"><div style="width:7px;height:7px;border-radius:50%;background:var(--new)"></div>新品 詳細</div>
+      <div class="stat-row"><span class="stat-label">売上</span><span id="d-new-rev">--</span></div>
+      <div class="stat-row"><span class="stat-label">仕入原価</span><span class="neg" id="d-new-cost">--</span></div>
+      <div class="stat-row"><span class="stat-label">Amazon手数料</span><span class="neg" id="d-new-fee">--</span></div>
+      <div class="stat-row"><span class="stat-label">送料</span><span class="neg" id="d-new-ship">--</span></div>
+      <div class="stat-row"><span>純利益</span><span class="pos" id="d-new-net">--</span></div>
+    </div>
+    <div class="card panel-used">
+      <div class="card-title" style="display:flex;align-items:center;gap:5px"><div style="width:7px;height:7px;border-radius:50%;background:var(--used)"></div>中古 詳細</div>
+      <div class="stat-row"><span class="stat-label">売上</span><span id="d-used-rev">--</span></div>
+      <div class="stat-row"><span class="stat-label">仕入原価</span><span class="neg" id="d-used-cost">--</span></div>
+      <div class="stat-row"><span class="stat-label">Amazon手数料</span><span class="neg" id="d-used-fee">--</span></div>
+      <div class="stat-row"><span class="stat-label">送料</span><span class="neg" id="d-used-ship">--</span></div>
+      <div class="stat-row"><span>純利益</span><span class="pos" id="d-used-net">--</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div class="card-title" style="margin-bottom:0">週別利益推移</div>
+      <div class="chart-legend">
+        <span style="display:flex;align-items:center;gap:3px"><span class="leg-sq" style="background:var(--new)"></span>新品</span>
+        <span style="display:flex;align-items:center;gap:3px"><span class="leg-sq" style="background:var(--used)"></span>中古</span>
+      </div>
+    </div>
+    <div class="bar-chart" id="weekly-bars"></div>
+    <div class="bar-x" id="weekly-labels"></div>
+  </div>
+  <div class="card">
+    <div class="section-row">
+      <div class="card-title" style="margin-bottom:0">最近の注文</div>
+      <button class="btn btn-secondary btn-sm" onclick="showPage('orders')">全件表示 →</button>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>注文日</th><th>種別</th><th style="min-width:150px">商品名</th><th>売価</th><th>純利益</th><th>状態</th></tr></thead>
+      <tbody id="recent-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ORDERS -->
+<div class="page" id="page-orders">
+  <div class="page-title">注文一覧</div>
+  <div class="page-sub">仕入れ値・送料は直接入力できます（入力後、外をクリックで自動保存）</div>
+  <div class="card">
+    <div style="display:flex;gap:8px;margin-bottom:0.9rem;flex-wrap:wrap;align-items:center">
+      <div class="search-wrap" style="flex:1;min-width:180px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="search-input" placeholder="注文ID・商品名・SKUで検索..." oninput="renderOrdersTable()" id="order-search">
+      </div>
+      <div class="filter-tabs" style="margin-bottom:0">
+        <button class="filter-tab active" onclick="setOrderFilter('all')" id="of-all">すべて</button>
+        <button class="filter-tab" onclick="setOrderFilter('new')" id="of-new">新品</button>
+        <button class="filter-tab" onclick="setOrderFilter('used')" id="of-used">中古</button>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="toggleSort()">日付 <span id="sort-label">新しい順</span></button>
+      <button class="btn btn-secondary btn-sm" onclick="exportCSV()">CSVエクスポート</button>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th style="cursor:pointer" onclick="toggleSort()">注文日<span id="sort-icon"> ↓</span></th>
+        <th>種別</th><th style="min-width:130px">商品名</th>
+        <th style="min-width:100px">SKU</th><th>売価</th>
+        <th style="min-width:80px">仕入れ(¥)</th>
+        <th style="min-width:70px">送料(¥)</th>
+        <th>手数料</th><th>純利益</th><th>状態</th><th style="min-width:140px">メモ</th>
+      </tr></thead>
+      <tbody id="orders-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- PROFIT -->
+<div class="page" id="page-profit">
+  <div class="page-title">利益分析</div>
+  <div class="page-sub">商品別・種別の詳細な利益内訳</div>
+  <div class="metric-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric-card"><div class="metric-label">総売上</div><div class="metric-value" id="pa-rev">--</div></div>
+    <div class="metric-card"><div class="metric-label">総費用</div><div class="metric-value neg" id="pa-cost">--</div></div>
+    <div class="metric-card"><div class="metric-label">純利益</div><div class="metric-value pos" id="pa-profit">--</div></div>
+    <div class="metric-card"><div class="metric-label">利益率</div><div class="metric-value pos" id="pa-margin">--%</div></div>
+  </div>
+  <div class="two-panels">
+    <div class="card"><div class="card-title">費用内訳</div><div id="cost-breakdown"></div></div>
+    <div class="card"><div class="card-title">新品 vs 中古</div><div id="nv-comparison"></div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">商品別利益ランキング</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>順位</th><th>種別</th><th style="min-width:160px">商品名</th><th>売上</th><th>純利益</th><th>利益率</th></tr></thead>
+      <tbody id="profit-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ACCOUNTS -->
+<div class="page" id="page-accounts">
+  <div class="page-title">アカウント設定</div>
+  <div class="page-sub">複数のAmazonセラーアカウントを管理できます</div>
+  <div class="info-box">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <div>
+      APIキーは<strong>Vercelの環境変数</strong>に安全に保存されています。<br>
+      アカウント名はブラウザに保存されます。新しいアカウントを追加する場合はVercelに環境変数を追加してください。
+    </div>
+  </div>
+  <div id="accounts-list"></div>
+  <button class="btn btn-secondary" onclick="showAddAccountModal()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    アカウントを追加
+  </button>
+
+  <div class="settings-section" style="margin-top:1rem">
+    <div class="settings-title">Vercel 環境変数の設定方法</div>
+    <div style="font-size:12px;color:var(--text2);line-height:2">
+      <div style="margin-bottom:6px">1. <a href="https://vercel.com/dashboard" target="_blank" style="color:var(--used)">vercel.com/dashboard</a> → プロジェクト → <strong>Settings → Environment Variables</strong></div>
+      <div style="margin-bottom:8px">2. アカウント番号ごとに以下を追加（1つ目はそのまま、2つ目以降は _2, _3 をつける）：</div>
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:2.2">
+        <div style="color:var(--text3)">// 1つ目のアカウント</div>
+        SELLER_ID = A2LF1TDDMCBMMT<br>
+        CLIENT_ID = amzn1.application-oa2-client.xxxx<br>
+        CLIENT_SECRET = シークレットキー<br>
+        REFRESH_TOKEN = Atzr|xxxx<br>
+        <br>
+        <div style="color:var(--text3)">// 2つ目のアカウント</div>
+        SELLER_ID_2 = B3MG2UEENCLDNU<br>
+        CLIENT_ID_2 = amzn1.application-oa2-client.yyyy<br>
+        CLIENT_SECRET_2 = シークレットキー2<br>
+        REFRESH_TOKEN_2 = Atzr|yyyy
+      </div>
+      <div style="margin-top:8px">3. 追加後 <strong>Deployments → Redeploy</strong> で反映</div>
+    </div>
+  </div>
+</div>
+
+<!-- SKU SETTINGS -->
+<div class="page" id="page-sku-settings">
+  <div class="page-title">費用設定</div>
+  <div class="page-sub">利益計算に使うデフォルト値（現在のアカウントに適用）</div>
+  <div class="settings-section">
+    <div class="settings-title">SKU 判別ルール</div>
+    <div class="sku-rule">
+      <div style="font-weight:600;font-size:12px;margin-bottom:5px"><span class="badge b-new">新品</span></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:3px"><span class="code">m_m〜</span> または <span class="code">m_z〜</span>（ハイフンなし）</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:3px"><span class="code">r_〜</span>（ラクマ出品）</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:3px"><span class="code">z_z〜</span>（Yahoo!フリマ出品）</div>
+      <div style="font-size:12px;color:var(--text2)"><span class="code">q_〜</span>（ヤフオク出品）</div>
+    </div>
+    <div class="sku-rule">
+      <div style="font-weight:600;font-size:12px;margin-bottom:5px"><span class="badge b-used">中古</span></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:3px"><span class="code">m_m〜-〜</span> または <span class="code">m_z〜-〜</span>（ハイフンあり → 中古と判定）</div>
+      <div style="font-size:12px;color:var(--text3)">仕入れ値は注文ごとに手動入力</div>
+    </div>
+  </div>
+  <div class="settings-section">
+    <div class="settings-title">デフォルト費用</div>
+    <div class="settings-grid">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--new);margin-bottom:8px">新品</div>
+        <div class="form-group"><label>デフォルト仕入れ値 (¥)</label><input type="number" id="cfg-new-cost" value="0" min="0"></div>
+        <div class="form-group"><label>デフォルト送料 (¥)</label><input type="number" id="cfg-new-ship" value="0" min="0"></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--used);margin-bottom:8px">中古</div>
+        <div class="form-group"><label>デフォルト送料 (¥)</label><input type="number" id="cfg-used-ship" value="0" min="0"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Amazon手数料率 (%)</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="cfg-fee-rate" value="15" min="0" max="100" step="0.5" style="width:90px">
+        <span style="font-size:12px;color:var(--text3)">通常 8〜15%</span>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveCostSettings()">保存してダッシュボードを更新</button>
+  </div>
+</div>
+
+</div></div></div>
+
+<!-- Add Account Modal -->
+<div class="modal-overlay" id="account-modal">
+  <div class="modal">
+    <div class="modal-title" id="acc-modal-title">アカウントを追加</div>
+    <div class="info-box" style="font-size:11px">
+      APIキーはVercelの環境変数に設定してください。ここではアカウント名と番号のみ登録します。
+    </div>
+    <div class="form-group">
+      <label>アカウント名（店舗名など）</label>
+      <input type="text" id="acc-name" placeholder="例: メインショップ">
+    </div>
+    <div class="form-group">
+      <label>Vercel環境変数の番号</label>
+      <select id="acc-num">
+        <option value="1">1番目（SELLER_ID, CLIENT_ID...）</option>
+        <option value="2">2番目（SELLER_ID_2, CLIENT_ID_2...）</option>
+        <option value="3">3番目（SELLER_ID_3, CLIENT_ID_3...）</option>
+        <option value="4">4番目（SELLER_ID_4, CLIENT_ID_4...）</option>
+        <option value="5">5番目（SELLER_ID_5, CLIENT_ID_5...）</option>
+        <option value="6">6番目（SELLER_ID_6, CLIENT_ID_6...）</option>
+        <option value="7">7番目（SELLER_ID_7, CLIENT_ID_7...）</option>
+        <option value="8">8番目（SELLER_ID_8, CLIENT_ID_8...）</option>
+        <option value="9">9番目（SELLER_ID_9, CLIENT_ID_9...）</option>
+        <option value="10">10番目（SELLER_ID_10, CLIENT_ID_10...）</option>
+      </select>
+    </div>
+    <div id="acc-modal-result"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeAccountModal()">キャンセル</button>
+      <button class="btn btn-secondary" onclick="testAccountConnection()">接続テスト</button>
+      <button class="btn btn-primary" onclick="saveAccount()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =============================================
+// STATE
+// =============================================
+const ACCOUNT_COLORS = ['#FF9900','#1D9E75','#3469c7','#9b59b6','#e74c3c','#1abc9c','#f39c12','#2980b9','#8e44ad','#c0392b'];
+let accounts = [];
+let currentAccountId = null;
+let overrides = {};
+let costSettings = {};
+let orderFilter = 'all';
+let memos = {}; // {accountId: {orderId: memoText}}
+let sortOrder = 'desc';
+let editingAccountId = null;
+
+// =============================================
+// SKU LOGIC
+// =============================================
+function parseSKU(sku) {
+  if (!sku) return { type:'unknown' };
+  if (/^m_[mz]/.test(sku) && sku.indexOf('-') > -1) return { type:'used' };
+  if (/^m_[mz]/.test(sku)) return { type:'new' };
+  if (sku.startsWith('r_')) return { type:'new' };
+  if (sku.startsWith('z_z')) return { type:'new' };
+  if (sku.startsWith('q_')) return { type:'new' };
+  return { type:'unknown' };
+}
+
+function getCfg(accountId) {
+  return costSettings[accountId] || { newCost:0, newShip:0, usedShip:0, feeRate:15 };
+}
+
+function processOrders(rawOrders, accountId) {
+  const cfg = getCfg(accountId);
+  const accOverrides = overrides[accountId] || {};
+  var result = [];
+  for (var i=0; i<rawOrders.length; i++) {
+    var order = rawOrders[i];
+    var items = order.items || [];
+    for (var j=0; j<items.length; j++) {
+      var item = items[j];
+      var parsed = parseSKU(item.sku);
+      var type = parsed.type;
+      var key = order.id + '_' + item.sku;
+      var ov = accOverrides[key] || {};
+      var cost = ov.cost !== undefined ? ov.cost : cfg.newCost;
+      var shipping = ov.ship !== undefined ? ov.ship : (type==='used' ? cfg.usedShip : cfg.newShip);
+      var price = (item.price || 0) * (item.qty || 1);
+      // キャンセルは売価・手数料・利益をすべて0に
+      var isCanceled = order.status === 'Canceled';
+      if (isCanceled) { price = 0; }
+      var fee = isCanceled ? 0 : Math.round(price * (cfg.feeRate||15) / 100);
+      var profit = isCanceled ? 0 : (price - cost - fee - shipping);
+      result.push({ id:order.id, date:order.date, status:order.status, sku:item.sku, asin:item.asin||'', product:item.title||'', qty:item.qty||1, type:type, price:price, cost:cost, shipping:shipping, fee:fee, profit:profit });
+    }
+  }
+  return result;
+}
+
+// =============================================
+// FORMAT
+// =============================================
+function fmt(n) { return '¥' + Math.round(Math.abs(n)).toLocaleString('ja-JP'); }
+function sum(arr, fn) { var t=0; for(var i=0;i<arr.length;i++) t+=fn(arr[i]); return t; }
+var STATUS_LABEL = { Unshipped:'未発送', PartiallyShipped:'一部発送', Shipped:'発送済', Canceled:'キャンセル' };
+var TYPE_LABEL = { new:['新品','b-new'], used:['中古','b-used'], unknown:['不明','b-unknown'] };
+
+// =============================================
+// API SYNC
+// =============================================
+async function syncOrders() {
+  var acc = getCurrentAccount();
+  if (!acc) { showToast('アカウントを選択してください'); return; }
+
+  var btn = document.getElementById('sync-btn');
+  var icon = document.getElementById('sync-icon');
+  btn.disabled = true;
+  icon.style.animation = 'spin 0.7s linear infinite';
+  showToast('注文データを取得中...');
+
+  try {
+    var res = await fetch('/api/orders?account=' + acc.num);
+    var data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || '取得失敗');
+    }
+
+    acc.orders = data.orders || [];
+    acc.lastSync = new Date().toISOString();
+    saveToStorage();
+    updateApiStatus(true);
+    renderAll();
+    showToast('✓ ' + acc.orders.length + '件の注文を取得しました');
+  } catch(err) {
+    console.error(err);
+    showToast('⚠ ' + err.message);
+    updateApiStatus(false);
+  } finally {
+    btn.disabled = false;
+    icon.style.animation = '';
+  }
+}
+
+async function testAccountConnection() {
+  var num = document.getElementById('acc-num').value;
+  var resultEl = document.getElementById('acc-modal-result');
+  resultEl.innerHTML = '<div class="loading"><div class="spinner"></div>接続テスト中...</div>';
+  try {
+    var res = await fetch('/api/orders?account=' + num);
+    var data = await res.json();
+    if (res.ok) {
+      resultEl.innerHTML = '<div class="success-box">✓ 接続成功！' + data.total + '件の注文が取得できました。</div>';
+    } else {
+      resultEl.innerHTML = '<div class="error-box">✗ ' + (data.error||'失敗') + '</div>';
+    }
+  } catch(err) {
+    resultEl.innerHTML = '<div class="error-box">✗ エラー: ' + err.message + '</div>';
+  }
+}
+
+// =============================================
+// ACCOUNT MANAGEMENT
+// =============================================
+function getCurrentAccount() {
+  for(var i=0;i<accounts.length;i++) { if(accounts[i].id===currentAccountId) return accounts[i]; }
+  return null;
+}
+
+function switchAccount(id) {
+  currentAccountId = id;
+  saveToStorage();
+  renderAccountTabs();
+  loadCostSettingsUI();
+  var acc = getCurrentAccount();
+  updateApiStatus(!!(acc && acc.orders && acc.orders.length));
+  renderAll();
+}
+
+function renderAccountTabs() {
+  var container = document.getElementById('account-tabs');
+  var html = '';
+  for(var i=0;i<accounts.length;i++) {
+    var acc = accounts[i];
+    var isActive = acc.id === currentAccountId;
+    var color = ACCOUNT_COLORS[i % ACCOUNT_COLORS.length];
+    html += '<button class="account-tab' + (isActive?' active':'') + '" onclick="switchAccount(\'' + acc.id + '\')">'
+          + '<div class="acc-dot" style="background:' + color + ';width:6px;height:6px;border-radius:50%"></div>'
+          + '<span>' + (acc.name||'アカウント'+(i+1)) + '</span>'
+          + '</button>';
+  }
+  container.innerHTML = html;
+}
+
+function renderAccountsList() {
+  var container = document.getElementById('accounts-list');
+  var html = '';
+  for(var i=0;i<accounts.length;i++) {
+    var acc = accounts[i];
+    var isCurrent = acc.id === currentAccountId;
+    var color = ACCOUNT_COLORS[i % ACCOUNT_COLORS.length];
+    var lastSync = acc.lastSync ? new Date(acc.lastSync).toLocaleString('ja-JP') : '未同期';
+    html += '<div class="account-card' + (isCurrent?' current':'') + '">'
+          + '<div class="account-card-header">'
+          + '<div class="account-name-row">'
+          + '<div style="width:10px;height:10px;border-radius:50%;background:' + color + '"></div>'
+          + '<strong style="font-size:14px">' + (acc.name||'アカウント'+(i+1)) + '</strong>'
+          + (isCurrent ? '<span class="badge b-new">使用中</span>' : '')
+          + '</div>'
+          + '<div style="display:flex;gap:6px">'
+          + (!isCurrent ? '<button class="btn btn-secondary btn-sm" onclick="switchAccount(\'' + acc.id + '\')">切替</button>' : '')
+          + '<button class="btn btn-secondary btn-sm" onclick="editAccount(\'' + acc.id + '\')">編集</button>'
+          + '<button class="btn btn-danger btn-sm" onclick="deleteAccount(\'' + acc.id + '\')">削除</button>'
+          + '</div></div>'
+          + '<div style="font-size:12px;color:var(--text2);display:grid;grid-template-columns:1fr 1fr;gap:4px">'
+          + '<span>環境変数番号: ' + acc.num + '番</span>'
+          + '<span>最終同期: ' + lastSync + '</span>'
+          + '<span>注文件数: ' + ((acc.orders||[]).length) + '件</span>'
+          + '</div></div>';
+  }
+  container.innerHTML = html;
+}
+
+function showAddAccountModal() {
+  editingAccountId = null;
+  document.getElementById('acc-modal-title').textContent = 'アカウントを追加';
+  document.getElementById('acc-name').value = '';
+  document.getElementById('acc-num').value = '1';
+  document.getElementById('acc-modal-result').innerHTML = '';
+  document.getElementById('account-modal').classList.add('open');
+}
+
+function editAccount(id) {
+  var acc = null;
+  for(var i=0;i<accounts.length;i++) { if(accounts[i].id===id) { acc=accounts[i]; break; } }
+  if (!acc) return;
+  editingAccountId = id;
+  document.getElementById('acc-modal-title').textContent = 'アカウントを編集';
+  document.getElementById('acc-name').value = acc.name||'';
+  document.getElementById('acc-num').value = acc.num||'1';
+  document.getElementById('acc-modal-result').innerHTML = '';
+  document.getElementById('account-modal').classList.add('open');
+}
+
+function deleteAccount(id) {
+  if (!confirm('このアカウントを削除しますか？')) return;
+  accounts = accounts.filter(function(a){return a.id!==id;});
+  if (currentAccountId===id) currentAccountId = accounts.length ? accounts[0].id : null;
+  saveToStorage();
+  renderAccountTabs();
+  renderAccountsList();
+  renderAll();
+  showToast('削除しました');
+}
+
+function saveAccount() {
+  var name = document.getElementById('acc-name').value.trim();
+  var num = document.getElementById('acc-num').value;
+  if (!name) { showToast('アカウント名を入力してください'); return; }
+
+  if (editingAccountId) {
+    for(var i=0;i<accounts.length;i++) {
+      if(accounts[i].id===editingAccountId) { accounts[i].name=name; accounts[i].num=num; break; }
+    }
+  } else {
+    var newAcc = { id: Date.now().toString(), name:name, num:num, orders:[], lastSync:null };
+    accounts.push(newAcc);
+    if (!currentAccountId) currentAccountId = newAcc.id;
+  }
+
+  saveToStorage();
+  closeAccountModal();
+  renderAccountTabs();
+  renderAccountsList();
+  showToast('保存しました');
+}
+
+function closeAccountModal() {
+  document.getElementById('account-modal').classList.remove('open');
+  editingAccountId = null;
+}
+
+// =============================================
+// COST SETTINGS
+// =============================================
+function loadCostSettingsUI() {
+  var cfg = getCfg(currentAccountId);
+  document.getElementById('cfg-new-cost').value = cfg.newCost||0;
+  document.getElementById('cfg-new-ship').value = cfg.newShip||0;
+  document.getElementById('cfg-used-ship').value = cfg.usedShip||0;
+  document.getElementById('cfg-fee-rate').value = cfg.feeRate||15;
+}
+
+function saveCostSettings() {
+  if (!currentAccountId) return;
+  costSettings[currentAccountId] = {
+    newCost: parseInt(document.getElementById('cfg-new-cost').value)||0,
+    newShip: parseInt(document.getElementById('cfg-new-ship').value)||0,
+    usedShip: parseInt(document.getElementById('cfg-used-ship').value)||0,
+    feeRate: parseFloat(document.getElementById('cfg-fee-rate').value)||15,
+  };
+  saveToStorage();
+  renderAll();
+  showToast('設定を保存しました');
+}
+
+// =============================================
+// RENDER
+// =============================================
+function getFilteredOrders() {
+  var acc = getCurrentAccount();
+  if (!acc || !acc.orders) return [];
+  var month = document.getElementById('month-select').value;
+  var orders = processOrders(acc.orders, currentAccountId);
+  return orders.filter(function(o){ return o.date && o.date.startsWith(month); });
+}
+
+function renderAll() {
+  var acc = getCurrentAccount();
+  var orders = getFilteredOrders();
+  var month = document.getElementById('month-select').value;
+  var parts = month.split('-');
+  var y=parts[0], mo=parseInt(parts[1]);
+
+  document.getElementById('dash-title').textContent = y+'年'+mo+'月 — ダッシュボード';
+  document.getElementById('dash-sub').textContent = acc ? (acc.name+' / '+orders.length+'件') : 'アカウントを選択してください';
+  document.getElementById('dash-no-api').style.display = (acc && !acc.orders.length) ? 'flex' : 'none';
+
+  var newO=[],usedO=[];
+  for(var i=0;i<orders.length;i++){
+    if(orders[i].type==='new') newO.push(orders[i]);
+    else if(orders[i].type==='used') usedO.push(orders[i]);
+  }
+  var totalRev=sum(orders,function(o){return o.price;});
+  var totalProfit=sum(orders,function(o){return o.profit;});
+  var margin=totalRev>0?Math.round(totalProfit/totalRev*100):0;
+
+  document.getElementById('kpi-rev').textContent = orders.length?fmt(totalRev):'--';
+  document.getElementById('kpi-cnt').textContent = orders.length+'件';
+  document.getElementById('kpi-profit').textContent = orders.length?fmt(totalProfit):'--';
+  document.getElementById('kpi-margin').textContent = '利益率 '+margin+'%';
+  document.getElementById('kpi-new').textContent = newO.length?fmt(sum(newO,function(o){return o.profit;})):'--';
+  document.getElementById('kpi-new-cnt').textContent = newO.length+'件';
+  document.getElementById('kpi-used').textContent = usedO.length?fmt(sum(usedO,function(o){return o.profit;})):'--';
+  document.getElementById('kpi-used-cnt').textContent = usedO.length+'件';
+
+  function setPanel(prefix,list){
+    document.getElementById('d-'+prefix+'-rev').textContent=list.length?fmt(sum(list,function(o){return o.price;})):'--';
+    document.getElementById('d-'+prefix+'-cost').textContent=list.length?'-'+fmt(sum(list,function(o){return o.cost;})):'--';
+    document.getElementById('d-'+prefix+'-fee').textContent=list.length?'-'+fmt(sum(list,function(o){return o.fee;})):'--';
+    document.getElementById('d-'+prefix+'-ship').textContent=list.length?'-'+fmt(sum(list,function(o){return o.shipping;})):'--';
+    document.getElementById('d-'+prefix+'-net').textContent=list.length?fmt(sum(list,function(o){return o.profit;})):'--';
+  }
+  setPanel('new',newO); setPanel('used',usedO);
+
+  renderWeeklyChart(orders,month);
+  renderRecentTable(orders.slice(0,5));
+  renderOrdersTable();
+  renderProfitPage(orders);
+  renderAccountsList();
+}
+
+function renderWeeklyChart(orders,month) {
+  var parts=month.split('-'),mo=parseInt(parts[1]);
+  var weeks=[{s:1,e:7},{s:8,e:14},{s:15,e:21},{s:22,e:31}].map(function(w){return{label:mo+'/'+w.s+'-'+w.e,s:w.s,e:w.e};});
+  var newData=weeks.map(function(w){return sum(orders.filter(function(o){var d=parseInt(o.date?o.date.slice(8,10):0);return o.type==='new'&&d>=w.s&&d<=w.e;}),function(o){return o.profit;});});
+  var usedData=weeks.map(function(w){return sum(orders.filter(function(o){var d=parseInt(o.date?o.date.slice(8,10):0);return o.type==='used'&&d>=w.s&&d<=w.e;}),function(o){return o.profit;});});
+  var maxV=Math.max.apply(null,newData.concat(usedData).concat([1]));
+  var barsHtml='',labelsHtml='';
+  for(var i=0;i<weeks.length;i++){
+    barsHtml+='<div class="bar-group">'
+      +'<div class="bar" style="flex:1;height:'+Math.round(newData[i]/maxV*120)+'px;background:var(--new)" title="新品 '+fmt(newData[i])+'"></div>'
+      +'<div class="bar" style="flex:1;height:'+Math.round(usedData[i]/maxV*120)+'px;background:var(--used)" title="中古 '+fmt(usedData[i])+'"></div>'
+      +'</div>';
+    labelsHtml+='<div class="bar-x-item">'+weeks[i].label+'</div>';
+  }
+  document.getElementById('weekly-bars').innerHTML=barsHtml;
+  document.getElementById('weekly-labels').innerHTML=labelsHtml;
+}
+
+function renderRecentTable(orders) {
+  var html='';
+  for(var i=0;i<orders.length;i++){
+    var o=orders[i];
+    var tl=(TYPE_LABEL[o.type]||['--',''])[0];
+    var tc=(TYPE_LABEL[o.type]||['--',''])[1];
+        html+='<tr>'
+      +'<td style="color:var(--text2);font-size:11px;white-space:nowrap">'+o.date+'</td>'
+      +'<td><span class="badge '+tc+'">'+tl+'</span></td>'
+      +'<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.product+'">'+o.product+'</td>'
+      +'<td style="font-weight:500">'+fmt(o.price)+'</td>'
+      +'<td style="font-weight:600" class="'+(o.profit>=0?'pos':'neg')+'">'+fmt(o.profit)+'</td>'
+      +'<td><span class="badge b-'+o.status+'">'+(STATUS_LABEL[o.status]||o.status)+'</span></td>'
+      +'</tr>';
+  }
+  document.getElementById('recent-tbody').innerHTML=html||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:1.5rem">注文データがありません。「同期」ボタンを押してください。</td></tr>';
+}
+
+function toggleSort() {
+  sortOrder = sortOrder==='desc'?'asc':'desc';
+  document.getElementById('sort-label').textContent = sortOrder==='desc'?'新しい順':'古い順';
+  document.getElementById('sort-icon').textContent = sortOrder==='desc'?' ↓':' ↑';
+  renderOrdersTable();
+}
+
+function saveInline(orderId, sku, field, value) {
+  if (!currentAccountId) return;
+  if (!overrides[currentAccountId]) overrides[currentAccountId]={};
+  var key=orderId+'_'+sku;
+  if (!overrides[currentAccountId][key]) overrides[currentAccountId][key]={};
+  overrides[currentAccountId][key][field]=parseInt(value)||0;
+  saveToStorage();
+  renderAll();
+}
+
+function saveMemo(orderId, value) {
+  if (!currentAccountId) return;
+  if (!memos[currentAccountId]) memos[currentAccountId] = {};
+  memos[currentAccountId][orderId] = value;
+  localStorage.setItem('amz_memos', JSON.stringify(memos));
+}
+
+function getMemo(orderId) {
+  if (!currentAccountId || !memos[currentAccountId]) return '';
+  return memos[currentAccountId][orderId] || '';
+}
+
+function exportCSV() {
+  var acc=getCurrentAccount();
+  if (!acc) { showToast('アカウントを選択してください'); return; }
+  var orders=getFilteredOrders();
+  if(orderFilter!=='all') orders=orders.filter(function(o){return o.type===orderFilter;});
+  orders.sort(function(a,b){return sortOrder==='desc'?b.date.localeCompare(a.date):a.date.localeCompare(b.date);});
+  var TYPE_NAME={new:'新品',used:'中古',unknown:'不明'};
+  var headers=['注文日','注文ID','種別','商品名','SKU','売価','仕入れ値','送料','Amazon手数料','純利益','利益率(%)','状態'];
+  var rows=orders.map(function(o){return[
+    o.date,o.id,(TYPE_NAME[o.type]||'不明'),
+    '"'+(o.product||'').replace(/"/g,'""')+'"',
+    o.sku,o.price,o.cost,o.shipping,o.fee,
+    Math.round(o.profit),
+    o.price>0?Math.round(o.profit/o.price*100):0,
+    (STATUS_LABEL[o.status]||o.status)
+  ];});
+  var csv=[headers.join(',')].concat(rows.map(function(r){return r.join(',');})).join('\n');
+  var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  var month=document.getElementById('month-select').value;
+  a.href=url; a.download='amazon_orders_'+(acc.name||'')+'_'+month+'.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('✓ '+orders.length+'件をCSVでエクスポートしました');
+}
+
+function renderOrdersTable() {
+  var q=(document.getElementById('order-search')?document.getElementById('order-search').value:'').toLowerCase();
+  var orders=getFilteredOrders();
+  if(orderFilter!=='all') orders=orders.filter(function(o){return o.type===orderFilter;});
+  if(q) orders=orders.filter(function(o){return o.id.toLowerCase().indexOf(q)>-1||o.product.toLowerCase().indexOf(q)>-1||(o.sku||'').toLowerCase().indexOf(q)>-1;});
+  orders.sort(function(a,b){return sortOrder==='desc'?b.date.localeCompare(a.date):a.date.localeCompare(b.date);});
+  var html='';
+  for(var i=0;i<orders.length;i++){
+    var o=orders[i];
+    var tl=(TYPE_LABEL[o.type]||['不明',''])[0];
+    var tc=(TYPE_LABEL[o.type]||['不明',''])[1];
+    html+='<tr>'
+      +'<td style="color:var(--text2);font-size:11px;white-space:nowrap">'+o.date+'</td>'
+      +'<td><span class="badge '+tc+'">'+tl+'</span></td>'
+      +'<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.product+'">'+o.product+'</td>'
+      +'<td class="mono" style="color:var(--text2);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.sku+'">'+o.sku+'</td>'
+      +'<td style="font-weight:500;white-space:nowrap">'+fmt(o.price)+'</td>'
+      +'<td><input type="number" value="'+o.cost+'" min="0"'
+        +' style="width:72px;padding:3px 5px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);font-family:inherit"'
+        +' onchange="saveInline(\''+o.id+'\',\''+o.sku+'\',\'cost\',this.value)"'
+        +' onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border2)\'"></td>'
+      +'<td><input type="number" value="'+o.shipping+'" min="0"'
+        +' style="width:62px;padding:3px 5px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);font-family:inherit"'
+        +' onchange="saveInline(\''+o.id+'\',\''+o.sku+'\',\'ship\',this.value)"'
+        +' onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border2)\'"></td>'
+      +'<td style="color:var(--danger);white-space:nowrap">'+fmt(o.fee)+'</td>'
+      +'<td style="font-weight:600;white-space:nowrap" class="'+(o.profit>=0?'pos':'neg')+'">'+fmt(o.profit)+'</td>'
+      +'<td><span class="badge b-'+o.status+'">'+(STATUS_LABEL[o.status]||o.status)+'</span></td>'
+      +'<td style="min-width:140px;padding:4px 6px"><textarea rows="2" data-id="'+o.id+'" placeholder="メモ" style="width:100%;font-size:11px;padding:4px 6px;border:1px solid #ddd;border-radius:4px;background:#fff;font-family:inherit;resize:vertical" onchange="saveMemo(this.dataset.id,this.value)">'+getMemo(o.id)+'</textarea></td>'
+      +'</tr>';
+  }
+  document.getElementById('orders-tbody').innerHTML=html||'<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:1.5rem">該当する注文がありません</td></tr>';
+}
+
+function setOrderFilter(f) {
+  orderFilter=f;
+  ['all','new','used'].forEach(function(x){var el=document.getElementById('of-'+x);if(el)el.classList.toggle('active',x===f);});
+  renderOrdersTable();
+}
+
+function renderProfitPage(orders) {
+  var totalRev=sum(orders,function(o){return o.price;});
+  var totalCost=sum(orders,function(o){return o.cost+o.fee+o.shipping;});
+  var totalProfit=sum(orders,function(o){return o.profit;});
+  var margin=totalRev>0?Math.round(totalProfit/totalRev*100):0;
+  document.getElementById('pa-rev').textContent=orders.length?fmt(totalRev):'--';
+  document.getElementById('pa-cost').textContent=orders.length?'-'+fmt(totalCost):'--';
+  document.getElementById('pa-profit').textContent=orders.length?fmt(totalProfit):'--';
+  document.getElementById('pa-margin').textContent=margin+'%';
+
+  var costs=[
+    {label:'仕入原価',val:sum(orders,function(o){return o.cost;}),color:'#c94040'},
+    {label:'Amazon手数料',val:sum(orders,function(o){return o.fee;}),color:'#3469c7'},
+    {label:'送料',val:sum(orders,function(o){return o.shipping;}),color:'#EF9F27'},
+  ];
+  var maxC=Math.max.apply(null,costs.map(function(c){return c.val;}).concat([1]));
+  var cbHtml='';
+  for(var i=0;i<costs.length;i++){
+    var c=costs[i];
+    cbHtml+='<div style="margin-bottom:9px">'
+      +'<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">'
+      +'<span style="display:flex;align-items:center;gap:4px"><span class="leg-sq" style="background:'+c.color+'"></span>'+c.label+'</span>'
+      +'<span style="font-weight:600">'+fmt(c.val)+'</span></div>'
+      +'<div class="progress"><div class="progress-fill" style="width:'+Math.round(c.val/maxC*100)+'%;background:'+c.color+'"></div></div>'
+      +'</div>';
+  }
+  document.getElementById('cost-breakdown').innerHTML=cbHtml;
+
+  var newO=orders.filter(function(o){return o.type==='new';});
+  var usedO=orders.filter(function(o){return o.type==='used';});
+  var newProfit=sum(newO,function(o){return o.profit;});
+  var usedProfit=sum(usedO,function(o){return o.profit;});
+  var newRev=sum(newO,function(o){return o.price;});
+  var usedRev=sum(usedO,function(o){return o.price;});
+  document.getElementById('nv-comparison').innerHTML=
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    +'<div style="background:var(--new-bg);border-radius:var(--radius-sm);padding:10px">'
+    +'<div style="font-size:11px;font-weight:600;color:var(--new);margin-bottom:5px">新品 '+newO.length+'件</div>'
+    +'<div style="font-size:15px;font-weight:700;color:var(--new)">'+(newO.length?fmt(newProfit):'--')+'</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:2px">利益率 '+(newO.length&&newRev>0?Math.round(newProfit/newRev*100):0)+'%</div>'
+    +'</div>'
+    +'<div style="background:var(--used-bg);border-radius:var(--radius-sm);padding:10px">'
+    +'<div style="font-size:11px;font-weight:600;color:var(--used);margin-bottom:5px">中古 '+usedO.length+'件</div>'
+    +'<div style="font-size:15px;font-weight:700;color:var(--used)">'+(usedO.length?fmt(usedProfit):'--')+'</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:2px">利益率 '+(usedO.length&&usedRev>0?Math.round(usedProfit/usedRev*100):0)+'%</div>'
+    +'</div></div>';
+
+  var sorted=orders.slice().sort(function(a,b){return b.profit-a.profit;});
+  var ptHtml='';
+  for(var i=0;i<sorted.length;i++){
+    var o=sorted[i];
+    var tl=(TYPE_LABEL[o.type]||['--',''])[0];
+    var tc=(TYPE_LABEL[o.type]||['--',''])[1];
+    var rate=o.price>0?Math.round(o.profit/o.price*100):0;
+    ptHtml+='<tr>'
+      +'<td style="font-weight:600;color:'+(i<3?'var(--accent-dark)':'var(--text3)')+'">#'+(i+1)+'</td>'
+      +'<td><span class="badge '+tc+'">'+tl+'</span></td>'
+      +'<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.product+'">'+o.product+'</td>'
+      +'<td>'+fmt(o.price)+'</td>'
+      +'<td style="font-weight:700" class="'+(o.profit>=0?'pos':'neg')+'">'+fmt(o.profit)+'</td>'
+      +'<td><div style="display:flex;align-items:center;gap:5px">'
+      +'<div class="progress" style="width:55px"><div class="progress-fill" style="width:'+Math.max(0,Math.min(100,rate))+'%;background:'+(rate>=20?'var(--new)':rate>=0?'var(--accent)':'var(--danger)')+'"></div></div>'
+      +'<span style="font-size:11px">'+rate+'%</span></div></td>'
+      +'</tr>';
+  }
+  document.getElementById('profit-tbody').innerHTML=ptHtml;
+}
+
+// =============================================
+// STORAGE & UI
+// =============================================
+function updateApiStatus(connected) {
+  document.getElementById('api-dot').className='status-dot '+(connected?'dot-on':'dot-off');
+  document.getElementById('api-status-text').textContent=connected?'SP-API 接続中':'未接続';
+}
+
+function buildMonthSelect() {
+  var sel=document.getElementById('month-select');
+  var now=new Date();
+  for(var i=0;i<12;i++){
+    var d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    var val=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    var label=d.getFullYear()+'年'+(d.getMonth()+1)+'月';
+    sel.innerHTML+='<option value="'+val+'"'+(i===0?' selected':'')+'>'+label+'</option>';
+  }
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+  var page=document.getElementById('page-'+id);
+  if(page) page.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function(n){if(n.getAttribute('onclick')&&n.getAttribute('onclick').indexOf("'"+id+"'")>-1)n.classList.add('active');});
+  if(id==='orders') renderOrdersTable();
+  if(id==='accounts') renderAccountsList();
+  if(id==='sku-settings') loadCostSettingsUI();
+}
+
+function showToast(msg) {
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer=setTimeout(function(){t.classList.remove('show');},3000);
+}
+
+function saveToStorage() {
+  try {
+    localStorage.setItem('amz_accounts',JSON.stringify(accounts));
+    localStorage.setItem('amz_current',currentAccountId||'');
+    localStorage.setItem('amz_overrides',JSON.stringify(overrides));
+    localStorage.setItem('amz_cost',JSON.stringify(costSettings));
+  } catch(e){}
+}
+
+function loadFromStorage() {
+  try {
+    var a=localStorage.getItem('amz_accounts'); if(a) accounts=JSON.parse(a);
+    currentAccountId=localStorage.getItem('amz_current')||( accounts.length?accounts[0].id:null);
+    var ov=localStorage.getItem('amz_overrides'); if(ov) overrides=JSON.parse(ov);
+    var cs=localStorage.getItem('amz_cost'); if(cs) costSettings=JSON.parse(cs);
+    var ms=localStorage.getItem('amz_memos'); if(ms) memos=JSON.parse(ms);
+  } catch(e){}
+}
+
+document.getElementById('account-modal').addEventListener('click',function(e){if(e.target===this)closeAccountModal();});
+
+document.addEventListener('DOMContentLoaded',function(){
+  buildMonthSelect();
+  loadFromStorage();
+  renderAccountTabs();
+  loadCostSettingsUI();
+  var acc=getCurrentAccount();
+  updateApiStatus(!!(acc&&acc.orders&&acc.orders.length));
+  renderAll();
+});
+</script>
+</body>
+</html>
