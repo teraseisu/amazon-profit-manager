@@ -93,6 +93,7 @@ export default async function handler(req, res) {
         return {
           id: order.AmazonOrderId,
           date: order.PurchaseDate?.slice(0, 10) || '',
+          dateTime: order.PurchaseDate || '',
           status: order.OrderStatus,
           items: items.map(item => ({
             asin: item.ASIN,
@@ -103,7 +104,7 @@ export default async function handler(req, res) {
           })),
         };
       } catch {
-        return { id: order.AmazonOrderId, date: order.PurchaseDate?.slice(0,10)||'', status: order.OrderStatus, items: [] };
+        return { id: order.AmazonOrderId, date: order.PurchaseDate?.slice(0,10)||'', dateTime: order.PurchaseDate||'', status: order.OrderStatus, items: [] };
       }
     }));
 
