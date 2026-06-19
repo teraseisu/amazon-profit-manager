@@ -86,6 +86,8 @@ th{text-align:left;font-size:10px;font-weight:600;color:var(--text3);letter-spac
 td{padding:8px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:var(--surface2)}
+tr.row-canceled td{background:#fdecec}
+tr.row-canceled:hover td{background:#fbdede}
 .mono{font-family:'JetBrains Mono',monospace;font-size:11px}
 
 .badge{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;white-space:nowrap}
@@ -292,10 +294,16 @@ input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 
       </div>
       <button class="btn btn-secondary btn-sm" onclick="toggleSort()">日付 <span id="sort-label">新しい順</span></button>
       <button class="btn btn-secondary btn-sm" onclick="exportCSV()">CSVエクスポート</button>
+      <button class="btn btn-secondary btn-sm" onclick="triggerCSVImport()">CSVインポート</button>
+      <input type="file" id="csv-import-input" accept=".csv" style="display:none" onchange="handleCSVImport(this)">
+    </div>
+    <div class="info-box" style="margin-bottom:0.9rem">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>仕入れ値・送料は<strong>SKU単位で記憶</strong>されます。一度入力すれば、同じSKUの次回以降の注文に自動で反映されます。CSVインポートでまとめて反映も可能です。</div>
     </div>
     <div class="table-wrap"><table>
       <thead><tr>
-        <th style="cursor:pointer" onclick="toggleSort()">注文日<span id="sort-icon"> ↓</span></th>
+        <th style="cursor:pointer" onclick="toggleSort()">注文日時<span id="sort-icon"> ↓</span></th>
         <th>種別</th><th style="min-width:130px">商品名</th>
         <th style="min-width:100px">SKU</th><th>売価</th>
         <th style="min-width:80px">仕入れ(¥)</th>
@@ -386,7 +394,7 @@ input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 
     <div class="sku-rule">
       <div style="font-weight:600;font-size:12px;margin-bottom:5px"><span class="badge b-used">中古</span></div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:3px"><span class="code">m_m〜-〜</span> または <span class="code">m_z〜-〜</span>（ハイフンあり → 中古と判定）</div>
-      <div style="font-size:12px;color:var(--text3)">仕入れ値は注文ごとに手動入力</div>
+      <div style="font-size:12px;color:var(--text3)">仕入れ値・送料はSKU単位で記憶（一度入力すれば同じSKUの次回注文に自動反映）</div>
     </div>
   </div>
   <div class="settings-section">
@@ -459,10 +467,11 @@ input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 
 const ACCOUNT_COLORS = ['#FF9900','#1D9E75','#3469c7','#9b59b6','#e74c3c','#1abc9c','#f39c12','#2980b9','#8e44ad','#c0392b'];
 let accounts = [];
 let currentAccountId = null;
-let overrides = {};
+let skuCost = {};        // {accountId: {sku: {cost, ship}}} - SKU単位で記憶、次回以降自動入力
 let costSettings = {};
 let orderFilter = 'all';
-let memos = {}; // {accountId: {orderId: memoText}}
+let memos = {};           // {accountId: {orderId: memoText}}
+let statusOverrides = {}; // {accountId: {orderId: 'Unshipped'|'PartiallyShipped'|'Shipped'|'Canceled'}}
 let sortOrder = 'desc';
 let editingAccountId = null;
 
@@ -483,28 +492,34 @@ function getCfg(accountId) {
   return costSettings[accountId] || { newCost:0, newShip:0, usedShip:0, feeRate:15 };
 }
 
+function getEffectiveStatus(accountId, orderId, apiStatus) {
+  var ov = statusOverrides[accountId];
+  if (ov && ov[orderId]) return ov[orderId];
+  return apiStatus;
+}
+
 function processOrders(rawOrders, accountId) {
   const cfg = getCfg(accountId);
-  const accOverrides = overrides[accountId] || {};
+  const skuCostMap = skuCost[accountId] || {};
   var result = [];
   for (var i=0; i<rawOrders.length; i++) {
     var order = rawOrders[i];
     var items = order.items || [];
+    var effectiveStatus = getEffectiveStatus(accountId, order.id, order.status);
+    var isCanceled = effectiveStatus === 'Canceled';
     for (var j=0; j<items.length; j++) {
       var item = items[j];
       var parsed = parseSKU(item.sku);
       var type = parsed.type;
-      var key = order.id + '_' + item.sku;
-      var ov = accOverrides[key] || {};
-      var cost = ov.cost !== undefined ? ov.cost : cfg.newCost;
-      var shipping = ov.ship !== undefined ? ov.ship : (type==='used' ? cfg.usedShip : cfg.newShip);
+      var rec = skuCostMap[item.sku];
+      var cost = (rec && rec.cost !== undefined) ? rec.cost : cfg.newCost;
+      var shipping = (rec && rec.ship !== undefined) ? rec.ship : (type==='used' ? cfg.usedShip : cfg.newShip);
       var price = (item.price || 0) * (item.qty || 1);
       // キャンセルは売価・手数料・利益をすべて0に
-      var isCanceled = order.status === 'Canceled';
       if (isCanceled) { price = 0; }
       var fee = isCanceled ? 0 : Math.round(price * (cfg.feeRate||15) / 100);
       var profit = isCanceled ? 0 : (price - cost - fee - shipping);
-      result.push({ id:order.id, date:order.date, status:order.status, sku:item.sku, asin:item.asin||'', product:item.title||'', qty:item.qty||1, type:type, price:price, cost:cost, shipping:shipping, fee:fee, profit:profit });
+      result.push({ id:order.id, date:order.date, dateTime:order.dateTime||order.date, apiStatus:order.status, status:effectiveStatus, sku:item.sku, asin:item.asin||'', product:item.title||'', qty:item.qty||1, type:type, price:price, cost:cost, shipping:shipping, fee:fee, profit:profit });
     }
   }
   return result;
@@ -516,7 +531,16 @@ function processOrders(rawOrders, accountId) {
 function fmt(n) { return '¥' + Math.round(Math.abs(n)).toLocaleString('ja-JP'); }
 function sum(arr, fn) { var t=0; for(var i=0;i<arr.length;i++) t+=fn(arr[i]); return t; }
 var STATUS_LABEL = { Unshipped:'未発送', PartiallyShipped:'一部発送', Shipped:'発送済', Canceled:'キャンセル' };
+var STATUS_LABEL_REVERSE = { '未発送':'Unshipped', '一部発送':'PartiallyShipped', '発送済':'Shipped', 'キャンセル':'Canceled' };
 var TYPE_LABEL = { new:['新品','b-new'], used:['中古','b-used'], unknown:['不明','b-unknown'] };
+
+function formatDateTime(dt, dateFallback) {
+  if (!dt) return dateFallback || '';
+  // dt like 2026-06-18T21:09:00Z
+  var m = dt.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (m) return m[1] + ' ' + m[2];
+  return dateFallback || dt;
+}
 
 // =============================================
 // API SYNC
@@ -767,7 +791,8 @@ function renderAll() {
   setPanel('new',newO); setPanel('used',usedO);
 
   renderWeeklyChart(orders,month);
-  renderRecentTable(orders.slice(0,5));
+  var recentSorted = orders.slice().sort(function(a,b){return b.dateTime.localeCompare(a.dateTime);});
+  renderRecentTable(recentSorted.slice(0,5));
   renderOrdersTable();
   renderProfitPage(orders);
   renderAccountsList();
@@ -797,8 +822,9 @@ function renderRecentTable(orders) {
     var o=orders[i];
     var tl=(TYPE_LABEL[o.type]||['--',''])[0];
     var tc=(TYPE_LABEL[o.type]||['--',''])[1];
-        html+='<tr>'
-      +'<td style="color:var(--text2);font-size:11px;white-space:nowrap">'+o.date+'</td>'
+    var rowClass = o.status==='Canceled' ? ' class="row-canceled"' : '';
+    html+='<tr'+rowClass+'>'
+      +'<td style="color:var(--text2);font-size:11px;white-space:nowrap">'+formatDateTime(o.dateTime,o.date)+'</td>'
       +'<td><span class="badge '+tc+'">'+tl+'</span></td>'
       +'<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.product+'">'+o.product+'</td>'
       +'<td style="font-weight:500">'+fmt(o.price)+'</td>'
@@ -818,19 +844,27 @@ function toggleSort() {
 
 function saveInline(orderId, sku, field, value) {
   if (!currentAccountId) return;
-  if (!overrides[currentAccountId]) overrides[currentAccountId]={};
-  var key=orderId+'_'+sku;
-  if (!overrides[currentAccountId][key]) overrides[currentAccountId][key]={};
-  overrides[currentAccountId][key][field]=parseInt(value)||0;
+  if (!skuCost[currentAccountId]) skuCost[currentAccountId]={};
+  if (!skuCost[currentAccountId][sku]) skuCost[currentAccountId][sku]={};
+  skuCost[currentAccountId][sku][field]=parseInt(value)||0;
   saveToStorage();
   renderAll();
+}
+
+function saveStatus(orderId, value) {
+  if (!currentAccountId) return;
+  if (!statusOverrides[currentAccountId]) statusOverrides[currentAccountId]={};
+  statusOverrides[currentAccountId][orderId]=value;
+  saveToStorage();
+  renderAll();
+  showToast('状態を更新しました');
 }
 
 function saveMemo(orderId, value) {
   if (!currentAccountId) return;
   if (!memos[currentAccountId]) memos[currentAccountId] = {};
   memos[currentAccountId][orderId] = value;
-  localStorage.setItem('amz_memos', JSON.stringify(memos));
+  saveToStorage();
 }
 
 function getMemo(orderId) {
@@ -843,16 +877,17 @@ function exportCSV() {
   if (!acc) { showToast('アカウントを選択してください'); return; }
   var orders=getFilteredOrders();
   if(orderFilter!=='all') orders=orders.filter(function(o){return o.type===orderFilter;});
-  orders.sort(function(a,b){return sortOrder==='desc'?b.date.localeCompare(a.date):a.date.localeCompare(b.date);});
+  orders.sort(function(a,b){return sortOrder==='desc'?b.dateTime.localeCompare(a.dateTime):a.dateTime.localeCompare(b.dateTime);});
   var TYPE_NAME={new:'新品',used:'中古',unknown:'不明'};
-  var headers=['注文日','注文ID','種別','商品名','SKU','売価','仕入れ値','送料','Amazon手数料','純利益','利益率(%)','状態'];
+  var headers=['注文日','注文ID','種別','商品名','SKU','売価','仕入れ値','送料','Amazon手数料','純利益','利益率(%)','状態','メモ'];
   var rows=orders.map(function(o){return[
-    o.date,o.id,(TYPE_NAME[o.type]||'不明'),
+    formatDateTime(o.dateTime,o.date),o.id,(TYPE_NAME[o.type]||'不明'),
     '"'+(o.product||'').replace(/"/g,'""')+'"',
     o.sku,o.price,o.cost,o.shipping,o.fee,
     Math.round(o.profit),
     o.price>0?Math.round(o.profit/o.price*100):0,
-    (STATUS_LABEL[o.status]||o.status)
+    (STATUS_LABEL[o.status]||o.status),
+    '"'+(getMemo(o.id)||'').replace(/"/g,'""')+'"'
   ];});
   var csv=[headers.join(',')].concat(rows.map(function(r){return r.join(',');})).join('\n');
   var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
@@ -864,34 +899,136 @@ function exportCSV() {
   showToast('✓ '+orders.length+'件をCSVでエクスポートしました');
 }
 
+function triggerCSVImport() {
+  if (!currentAccountId) { showToast('アカウントを選択してください'); return; }
+  document.getElementById('csv-import-input').click();
+}
+
+function parseCSVText(text) {
+  // BOM除去
+  text = text.replace(/^\uFEFF/, '');
+  var lines = text.split(/\r\n|\n/).filter(function(l){ return l.length > 0; });
+  if (lines.length < 2) return [];
+  var headers = splitCSVLine(lines[0]);
+  var rows = [];
+  for (var i=1; i<lines.length; i++) {
+    var cols = splitCSVLine(lines[i]);
+    var row = {};
+    for (var j=0; j<headers.length; j++) row[headers[j]] = cols[j]!==undefined ? cols[j] : '';
+    rows.push(row);
+  }
+  return rows;
+}
+
+function splitCSVLine(line) {
+  var result = [];
+  var cur = '';
+  var inQuotes = false;
+  for (var i=0; i<line.length; i++) {
+    var ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i+1] === '"') { cur += '"'; i++; }
+        else { inQuotes = false; }
+      } else { cur += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { result.push(cur); cur=''; }
+      else { cur += ch; }
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
+function handleCSVImport(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var rows = parseCSVText(e.target.result);
+      if (!currentAccountId) { showToast('アカウントを選択してください'); return; }
+      if (!skuCost[currentAccountId]) skuCost[currentAccountId] = {};
+      if (!statusOverrides[currentAccountId]) statusOverrides[currentAccountId] = {};
+      if (!memos[currentAccountId]) memos[currentAccountId] = {};
+
+      var skuCount = 0, statusCount = 0, memoCount = 0;
+
+      rows.forEach(function(row) {
+        var sku = row['SKU'];
+        var orderId = row['注文ID'];
+        var costVal = row['仕入れ値'];
+        var shipVal = row['送料'];
+        var statusVal = row['状態'];
+        var memoVal = row['メモ'];
+
+        if (sku) {
+          var rec = {};
+          if (costVal !== undefined && costVal !== '') rec.cost = parseInt(costVal) || 0;
+          if (shipVal !== undefined && shipVal !== '') rec.ship = parseInt(shipVal) || 0;
+          if (rec.cost !== undefined || rec.ship !== undefined) {
+            skuCost[currentAccountId][sku] = Object.assign({}, skuCost[currentAccountId][sku]||{}, rec);
+            skuCount++;
+          }
+        }
+        if (orderId && statusVal && STATUS_LABEL_REVERSE[statusVal]) {
+          statusOverrides[currentAccountId][orderId] = STATUS_LABEL_REVERSE[statusVal];
+          statusCount++;
+        }
+        if (orderId && memoVal) {
+          memos[currentAccountId][orderId] = memoVal;
+          memoCount++;
+        }
+      });
+
+      saveToStorage();
+      renderAll();
+      showToast('✓ インポート完了：仕入れ値'+skuCount+'件・状態'+statusCount+'件・メモ'+memoCount+'件');
+    } catch (err) {
+      showToast('⚠ インポート失敗: ' + err.message);
+    }
+    input.value = '';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
 function renderOrdersTable() {
   var q=(document.getElementById('order-search')?document.getElementById('order-search').value:'').toLowerCase();
   var orders=getFilteredOrders();
   if(orderFilter!=='all') orders=orders.filter(function(o){return o.type===orderFilter;});
   if(q) orders=orders.filter(function(o){return o.id.toLowerCase().indexOf(q)>-1||o.product.toLowerCase().indexOf(q)>-1||(o.sku||'').toLowerCase().indexOf(q)>-1;});
-  orders.sort(function(a,b){return sortOrder==='desc'?b.date.localeCompare(a.date):a.date.localeCompare(b.date);});
+  orders.sort(function(a,b){return sortOrder==='desc'?b.dateTime.localeCompare(a.dateTime):a.dateTime.localeCompare(b.dateTime);});
   var html='';
+  var statusKeys = ['Unshipped','PartiallyShipped','Shipped','Canceled'];
   for(var i=0;i<orders.length;i++){
     var o=orders[i];
     var tl=(TYPE_LABEL[o.type]||['不明',''])[0];
     var tc=(TYPE_LABEL[o.type]||['不明',''])[1];
-    html+='<tr>'
-      +'<td style="color:var(--text2);font-size:11px;white-space:nowrap">'+o.date+'</td>'
+    var rowClass = o.status==='Canceled' ? ' class="row-canceled"' : '';
+    var statusSelect = '<select data-id="'+o.id+'" onchange="saveStatus(this.dataset.id,this.value)" style="font-size:11px;padding:3px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--surface);font-family:inherit">';
+    for (var s=0; s<statusKeys.length; s++) {
+      var sk = statusKeys[s];
+      statusSelect += '<option value="'+sk+'"'+(o.status===sk?' selected':'')+'>'+STATUS_LABEL[sk]+'</option>';
+    }
+    statusSelect += '</select>';
+    html+='<tr'+rowClass+'>'
+      +'<td style="color:var(--text2);font-size:11px;white-space:nowrap">'+formatDateTime(o.dateTime,o.date)+'</td>'
       +'<td><span class="badge '+tc+'">'+tl+'</span></td>'
       +'<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.product+'">'+o.product+'</td>'
       +'<td class="mono" style="color:var(--text2);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+o.sku+'">'+o.sku+'</td>'
       +'<td style="font-weight:500;white-space:nowrap">'+fmt(o.price)+'</td>'
-      +'<td><input type="number" value="'+o.cost+'" min="0"'
+      +'<td><input type="number" value="'+o.cost+'" min="0" data-id="'+o.id+'" data-sku="'+o.sku+'"'
         +' style="width:72px;padding:3px 5px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);font-family:inherit"'
-        +' onchange="saveInline(\''+o.id+'\',\''+o.sku+'\',\'cost\',this.value)"'
+        +' onchange="saveInline(this.dataset.id,this.dataset.sku,\'cost\',this.value)"'
         +' onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border2)\'"></td>'
-      +'<td><input type="number" value="'+o.shipping+'" min="0"'
+      +'<td><input type="number" value="'+o.shipping+'" min="0" data-id="'+o.id+'" data-sku="'+o.sku+'"'
         +' style="width:62px;padding:3px 5px;font-size:12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);font-family:inherit"'
-        +' onchange="saveInline(\''+o.id+'\',\''+o.sku+'\',\'ship\',this.value)"'
+        +' onchange="saveInline(this.dataset.id,this.dataset.sku,\'ship\',this.value)"'
         +' onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border2)\'"></td>'
       +'<td style="color:var(--danger);white-space:nowrap">'+fmt(o.fee)+'</td>'
       +'<td style="font-weight:600;white-space:nowrap" class="'+(o.profit>=0?'pos':'neg')+'">'+fmt(o.profit)+'</td>'
-      +'<td><span class="badge b-'+o.status+'">'+(STATUS_LABEL[o.status]||o.status)+'</span></td>'
+      +'<td>'+statusSelect+'</td>'
       +'<td style="min-width:140px;padding:4px 6px"><textarea rows="2" data-id="'+o.id+'" placeholder="メモ" style="width:100%;font-size:11px;padding:4px 6px;border:1px solid #ddd;border-radius:4px;background:#fff;font-family:inherit;resize:vertical" onchange="saveMemo(this.dataset.id,this.value)">'+getMemo(o.id)+'</textarea></td>'
       +'</tr>';
   }
@@ -1013,8 +1150,10 @@ function saveToStorage() {
   try {
     localStorage.setItem('amz_accounts',JSON.stringify(accounts));
     localStorage.setItem('amz_current',currentAccountId||'');
-    localStorage.setItem('amz_overrides',JSON.stringify(overrides));
+    localStorage.setItem('amz_skucost',JSON.stringify(skuCost));
     localStorage.setItem('amz_cost',JSON.stringify(costSettings));
+    localStorage.setItem('amz_memos',JSON.stringify(memos));
+    localStorage.setItem('amz_status_overrides',JSON.stringify(statusOverrides));
   } catch(e){}
 }
 
@@ -1022,9 +1161,30 @@ function loadFromStorage() {
   try {
     var a=localStorage.getItem('amz_accounts'); if(a) accounts=JSON.parse(a);
     currentAccountId=localStorage.getItem('amz_current')||( accounts.length?accounts[0].id:null);
-    var ov=localStorage.getItem('amz_overrides'); if(ov) overrides=JSON.parse(ov);
+    var sc=localStorage.getItem('amz_skucost'); if(sc) skuCost=JSON.parse(sc);
     var cs=localStorage.getItem('amz_cost'); if(cs) costSettings=JSON.parse(cs);
     var ms=localStorage.getItem('amz_memos'); if(ms) memos=JSON.parse(ms);
+    var so=localStorage.getItem('amz_status_overrides'); if(so) statusOverrides=JSON.parse(so);
+
+    // 旧バージョンの仕入れ値データ（注文ID単位）からSKU単位へ簡易移行
+    var old=localStorage.getItem('amz_overrides');
+    if (old) {
+      try {
+        var oldData=JSON.parse(old);
+        for (var accId in oldData) {
+          if (!skuCost[accId]) skuCost[accId] = {};
+          for (var key in oldData[accId]) {
+            var us = key.indexOf('_');
+            if (us > -1) {
+              var sku = key.slice(us+1);
+              if (!skuCost[accId][sku]) skuCost[accId][sku] = oldData[accId][key];
+            }
+          }
+        }
+        localStorage.removeItem('amz_overrides');
+        saveToStorage();
+      } catch(e2){}
+    }
   } catch(e){}
 }
 
