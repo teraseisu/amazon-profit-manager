@@ -907,37 +907,41 @@ function triggerCSVImport() {
 function parseCSVText(text) {
   // BOM除去
   text = text.replace(/^\uFEFF/, '');
-  var lines = text.split(/\r\n|\n/).filter(function(l){ return l.length > 0; });
-  if (lines.length < 2) return [];
-  var headers = splitCSVLine(lines[0]);
+  // 引用符をまたぐ改行（メモの複数行など）に対応した本格的なCSVパーサー
   var rows = [];
-  for (var i=1; i<lines.length; i++) {
-    var cols = splitCSVLine(lines[i]);
-    var row = {};
-    for (var j=0; j<headers.length; j++) row[headers[j]] = cols[j]!==undefined ? cols[j] : '';
-    rows.push(row);
-  }
-  return rows;
-}
-
-function splitCSVLine(line) {
-  var result = [];
-  var cur = '';
+  var row = [];
+  var field = '';
   var inQuotes = false;
-  for (var i=0; i<line.length; i++) {
-    var ch = line[i];
+  for (var i=0; i<text.length; i++) {
+    var ch = text[i];
     if (inQuotes) {
       if (ch === '"') {
-        if (line[i+1] === '"') { cur += '"'; i++; }
+        if (text[i+1] === '"') { field += '"'; i++; }
         else { inQuotes = false; }
-      } else { cur += ch; }
+      } else {
+        field += ch;
+      }
     } else {
       if (ch === '"') { inQuotes = true; }
-      else if (ch === ',') { result.push(cur); cur=''; }
-      else { cur += ch; }
+      else if (ch === ',') { row.push(field); field=''; }
+      else if (ch === '\r') { /* skip, \n が次に来る */ }
+      else if (ch === '\n') { row.push(field); field=''; rows.push(row); row=[]; }
+      else { field += ch; }
     }
   }
-  result.push(cur);
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  // 末尾の空行を除去
+  rows = rows.filter(function(r){ return !(r.length===1 && r[0]==='') ; });
+
+  if (rows.length < 2) return [];
+  var headers = rows[0].map(function(h){ return h.trim(); });
+  var result = [];
+  for (var r=1; r<rows.length; r++) {
+    var cols = rows[r];
+    var obj = {};
+    for (var c=0; c<headers.length; c++) obj[headers[c]] = cols[c]!==undefined ? cols[c] : '';
+    result.push(obj);
+  }
   return result;
 }
 
